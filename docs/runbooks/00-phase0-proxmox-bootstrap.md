@@ -15,6 +15,12 @@
 
 ## Prerequisites
 
+> **If you're doing the NVMe relocation from the Pi5**, run the hardware
+> portion of [`00a-hardware-nvme-relocation.md`](./00a-hardware-nvme-relocation.md)
+> (Steps 1–6) first so both NVMes are physically installed and visible in
+> BIOS before you begin this runbook. The `tank` pool itself is created
+> later (00a Steps 8–13) once Proxmox is up.
+
 Before you start, gather:
 
 - Ryzen workstation, monitor + keyboard for first boot.
@@ -199,8 +205,11 @@ Save and reboot from the USB.
 
 Walk through the installer:
 
-- **Target disk:** the 1 TB NVMe. Filesystem: **`zfs (RAID0)`** (single disk
-  here; this gives you a real ZFS pool and snapshot capability without
+- **Target disk:** the **original** 1 TB NVMe. If both NVMes are present
+  (because you completed the 00a hardware steps), select **only** the
+  original drive here — the relocated NVMe is left untouched and becomes
+  `tank` in 00a Step 8. Filesystem: **`zfs (RAID0)`** (single disk here;
+  this gives you a real ZFS pool and snapshot capability without
   pretending to mirror).
 - **ashift:** 12 (default; correct for NVMe).
 - **compress:** lz4. **checksum:** on. **copies:** 1.
@@ -362,6 +371,12 @@ pvesm add dir local-iso --path /rpool/iso --content iso,vztmpl
 
 A reboot is needed for `zfs_arc_max` to take effect. Do it now (`reboot`)
 and reconnect.
+
+> **If the second NVMe is installed and you haven't created `tank` yet:**
+> switch to [`00a-hardware-nvme-relocation.md`](./00a-hardware-nvme-relocation.md)
+> from Step 8 (identify the new disk) through Step 13 (set tank-vmdata as
+> default storage), then return here for Step 9 (lab isolation
+> verification).
 
 ---
 
