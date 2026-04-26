@@ -1,7 +1,7 @@
 # Cucox Lab — Architecture
 
-> **Status:** Draft · Phase 0 (Foundation)
-> **Last updated:** 2026-04-25
+> **Status:** Draft · Phase 1 (VM bringup + k3s cluster, in progress)
+> **Last updated:** 2026-04-26
 > **Owner:** Raziel
 
 This is the canonical design document for the Cucox Lab. It is intentionally
@@ -284,6 +284,14 @@ k3s ships with Flannel by default; we **disable it** (`--flannel-backend=none
 - `cloudflared` (in `lab-edge01` VM, dmz VLAN) routes external traffic to
   this ingress VIP.
 
+**VIP allocations within the MetalLB pool** (keep this table updated as
+LoadBalancer Services are added so future operators know what's "taken"):
+
+| VIP | Owner | Notes |
+|---|---|---|
+| `10.10.20.50` | `ingress-nginx` controller | Pinned via `metallb.universe.tf/loadBalancerIPs` annotation. Stable target for `cloudflared` (runbook 03). |
+| `10.10.20.51–.99` | unallocated | Free for future LoadBalancer Services. |
+
 ### 5.5 DNS
 
 - Internal: `*.lab.cucox.local` → CoreDNS view, served by k3s CoreDNS for
@@ -426,11 +434,13 @@ cucox-lab-infra/
 ├── README.md
 ├── docs/
 │   ├── runbooks/
-│   │   ├── 00-phase0-proxmox-bootstrap.md   ← you are starting here
-│   │   ├── 01-phase1-vm-bringup.md          (next)
-│   │   ├── 02-phase1-k3s-cluster.md
-│   │   ├── 03-phase2-cloudflared-tunnel.md
-│   │   └── 04-phase2-observability.md
+│   │   ├── 00-phase0-proxmox-bootstrap.md   ✅ done
+│   │   ├── 00a-hardware-nvme-relocation.md  ✅ done
+│   │   ├── 01-phase1-vm-bringup.md          ✅ done (§4.3 + §4.4)
+│   │   ├── 02-phase1-k3s-cluster.md         ✅ done (§5)
+│   │   ├── 03-phase2-cloudflared-tunnel.md  (next)
+│   │   ├── 04-phase2-observability.md
+│   │   └── 05-dns-godaddy-to-cloudflare.md
 │   └── decisions/
 │       ├── 0001-hypervisor-choice.md
 │       ├── 0002-cni-cilium.md
@@ -554,5 +564,6 @@ for traces. ADRs and writeups for every interesting result.
 | 0007 | 2026-04-25 | Phase order: build platform fully (Phases 0–2) before migrating any real workload. | Active |
 | 0008 | 2026-04-25 | Repo visibility: **public on GitHub**. SOPS+age encrypts secrets at rest; pre-commit `gitleaks` blocks plaintext leaks; tunnel credentials and the age private key kept out of repo entirely. See [ADR-0008](./docs/decisions/0008-public-repo-sops-gitleaks.md). | Active |
 | 0009 | 2026-04-25 | Storage: two-pool ZFS (`rpool` system, `tank` VMs+bench) on 2× NVMe — second drive relocated from Pi5 where it was bottlenecked by PCIe Gen 2 x1. | Active |
+| 0010 | 2026-04-26 | Terraform Proxmox provider: stay on `Telmate/proxmox` (pinned `~> 2.9.14`) over `bpg/proxmox`. Trade-offs and revisit triggers documented in [ADR-0010](./docs/decisions/0010-terraform-proxmox-provider.md). | Active |
 
 Future ADRs go in `docs/decisions/` with full rationale; this table is the index.
