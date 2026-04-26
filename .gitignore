@@ -1,0 +1,44 @@
+# Terraform
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Ansible
+.ansible/
+*.retry
+
+# Kubernetes / Helm
+.kube/
+charts/*.tgz
+
+# SOPS / age — never commit private keys, regardless of location
+keys.txt
+**/keys.txt
+*.agekey
+*.age-key
+
+# Local secrets-in-progress (encrypt or delete; do not commit plaintext)
+*.dec
+*.decrypted
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Python (pre-commit creates venvs but stores them under ~/.cache)
+__pycache__/
+*.pyc
