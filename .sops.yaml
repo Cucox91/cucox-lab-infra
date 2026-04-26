@@ -1,4 +1,23 @@
----
+keys:
+  - &cucox_lab age1z7fje8ex3nyl05f4e6e4y80klf783ala6gwyjnnt35hevcah2g2qvdutld
+
 creation_rules:
-  - path_regex: secrets/.*\.yaml$
-    age: age1z7fje8ex3nyl05f4e6e4y80klf783ala6gwyjnnt35hevcah2g2qvdutld
+  # Anything explicitly named *.secrets.yml / *.secrets.yaml
+  - path_regex: \.secrets\.ya?ml$
+    age: *cucox_lab
+
+  # Anything inside a secrets/ directory
+  - path_regex: (^|/)secrets/.+\.ya?ml$
+    age: *cucox_lab
+
+  # Conventional k8s Secret manifests (foo-secret.yaml, foo-secrets.yaml)
+  - path_regex: -secrets?\.ya?ml$
+    age: *cucox_lab
+
+  # Cloudflared tunnel credentials
+  - path_regex: (^|/)cloudflared/creds\..+
+    age: *cucox_lab
+
+  # Generic credentials.json blobs
+  - path_regex: (^|/)credentials\.json$
+    age: *cucox_lab
