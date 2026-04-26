@@ -1,0 +1,23 @@
+# Claude Code worktrees (local agent scratch space — never commit)
+.claude/worktrees/
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfplan
+.terraformrc
+terraform.rc
+
+# Ansible
+*.retry
+
+# SOPS decrypted secrets (never commit plaintext)
+secrets/*.dec.yaml
+
+# Editor / OS
+.DS_Store
+*.swp
+*.swo
+.idea/
+.vscode/
