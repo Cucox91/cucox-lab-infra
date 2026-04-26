@@ -196,6 +196,13 @@ mature community.
 
 ### 4.2 Storage layout
 
+> ⚠ **Phase 1 deviation, see [ADR-0011](./docs/decisions/0011-phase1-single-pool-deviation.md):**
+> the second NVMe is not yet installed. During Phase 1, VMs live on
+> `rpool/data` (Proxmox storage `local-zfs`) and the `tank` pool does
+> not exist. The two-pool design below remains the target end-state; the
+> migration plan is in ADR-0011. Anywhere this section says "tank", read
+> "deferred until ADR-0011 closes."
+
 Two independent ZFS pools, one per NVMe. Keeping them separate means a
 corrupted VM dataset never threatens the hypervisor, and benchmarks can pin
 workloads to a dedicated drive without I/O contamination from VM-disk traffic.
@@ -563,7 +570,8 @@ for traces. ADRs and writeups for every interesting result.
 | 0006 | 2026-04-25 | Cluster: k3s in HA mode (3 control-plane VMs) over kubeadm — k3s gives the same API surface with less ceremony. | Active |
 | 0007 | 2026-04-25 | Phase order: build platform fully (Phases 0–2) before migrating any real workload. | Active |
 | 0008 | 2026-04-25 | Repo visibility: **public on GitHub**. SOPS+age encrypts secrets at rest; pre-commit `gitleaks` blocks plaintext leaks; tunnel credentials and the age private key kept out of repo entirely. See [ADR-0008](./docs/decisions/0008-public-repo-sops-gitleaks.md). | Active |
-| 0009 | 2026-04-25 | Storage: two-pool ZFS (`rpool` system, `tank` VMs+bench) on 2× NVMe — second drive relocated from Pi5 where it was bottlenecked by PCIe Gen 2 x1. | Active |
+| 0009 | 2026-04-25 | Storage: two-pool ZFS (`rpool` system, `tank` VMs+bench) on 2× NVMe — second drive relocated from Pi5 where it was bottlenecked by PCIe Gen 2 x1. | **Active (target end-state) — temporarily deviated by ADR-0011 for Phase 1** |
 | 0010 | 2026-04-26 | Terraform Proxmox provider: stay on `Telmate/proxmox` (pinned `~> 2.9.14`) over `bpg/proxmox`. Trade-offs and revisit triggers documented in [ADR-0010](./docs/decisions/0010-terraform-proxmox-provider.md). | Active |
+| 0011 | 2026-04-26 | Phase 1 single-pool ZFS deviation: VMs run on `rpool/data` (`local-zfs`) only because the second NVMe relocation is deferred. Closes when 00a Steps 8–13 are run; migration plan in [ADR-0011](./docs/decisions/0011-phase1-single-pool-deviation.md). | Active (deviation, time-boxed) |
 
 Future ADRs go in `docs/decisions/` with full rationale; this table is the index.

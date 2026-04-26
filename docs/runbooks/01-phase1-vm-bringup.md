@@ -32,20 +32,25 @@ anything cluster-shaped. Those are runbook 02.
 
 - Runbook 00 (Phase 0) completed end-to-end. `lab-prox01` is reachable at
   `10.10.10.10` from the Mac Air on `CucoxLab-Mgmt`.
-- Runbook 00a Steps 8–13 (the `tank` pool creation + Proxmox storage
-  registration) completed. Verify on the Proxmox host:
+- **(Phase 1 deviation, see [ADR-0011](../decisions/0011-phase1-single-pool-deviation.md))**
+  The second NVMe relocation from runbook 00a is deferred. VMs run on
+  `rpool/data` (Proxmox storage `local-zfs`, created by the Proxmox
+  installer) for now. ADR-0009's two-pool ZFS layout remains the target
+  end-state — the migration plan is in ADR-0011 § "Migration to tank".
+  Verify the storage that *does* exist:
 
   ```sh
-  ssh root@10.10.10.10 'pvesm status'
-  # expect rows for both `local-iso` and `tank-vmdata`, both `active`
+  ssh root@10.10.10.10 'pvesm status | grep -E "local-zfs|local-iso"'
+  # expect both rows, both `active`. A `tank-vmdata` row is intentionally
+  # absent under this deviation.
   ```
 
-  If `tank-vmdata` is missing, every `qm` and Terraform step in this runbook
-  will fail with `storage 'tank-vmdata' does not exist`. Stop, finish 00a,
-  return.
+  If `local-zfs` is missing, your Proxmox install diverged from the
+  defaults — fix that first; every `qm` and Terraform step below assumes it.
 
-- ZFS pools `rpool` and `tank` are both healthy (`zpool status` is `ONLINE`,
-  no errors). `tank/vmdata` is the default Proxmox storage for new VM disks.
+- ZFS pool `rpool` is healthy (`zpool status` is `ONLINE`, no errors).
+  `rpool/data` is the storage backing `local-zfs` and holds VM disks for
+  the duration of this deviation.
 - Mac Air has `terraform`, `sops`, `age`, `jq`, `yq` installed (Phase 0
   Step 0). Confirm:
 
@@ -224,21 +229,21 @@ qm create 9000 \
   --cpu host \
   --machine q35 \
   --bios ovmf \
-  --efidisk0 tank-vmdata:0,format=raw,efitype=4m,pre-enrolled-keys=0 \
+  --efidisk0 local-zfs:0,format=raw,efitype=4m,pre-enrolled-keys=0 \
   --scsihw virtio-scsi-single \
   --net0 virtio,bridge=vmbr0,tag=10 \
   --serial0 socket --vga serial0 \
   --agent enabled=1 \
   --ostype l26
 
-# Import the cloud image as a disk on `tank-vmdata`.
-qm importdisk 9000 /rpool/iso/noble-server-cloudimg-amd64.img tank-vmdata
+# Import the cloud image as a disk on `local-zfs` (rpool/data).
+qm importdisk 9000 /rpool/iso/noble-server-cloudimg-amd64.img local-zfs
 
 # Attach the imported disk as scsi0 (boot disk) with discard for ZFS TRIM.
-qm set 9000 --scsi0 tank-vmdata:vm-9000-disk-1,discard=on,iothread=1,ssd=1
+qm set 9000 --scsi0 local-zfs:vm-9000-disk-1,discard=on,iothread=1,ssd=1
 
 # Add a cloud-init drive on ide2 (Proxmox's default for cloud-init).
-qm set 9000 --ide2 tank-vmdata:cloudinit
+qm set 9000 --ide2 local-zfs:cloudinit
 
 # Boot from the imported disk.
 qm set 9000 --boot order=scsi0
@@ -269,18 +274,18 @@ every clone via cloud-init, but baking it once saves time.
 # Install libguestfs tools on the Proxmox host (once).
 apt -y install libguestfs-tools
 
-# Discover the actual disk path. With `tank-vmdata` (ZFS) it's a zvol;
+# Discover the actual disk path. With `local-zfs` (rpool/data) it's a zvol;
 # with directory-backed storage it would be a qcow2 file.
 DISK=$(qm config 9000 | awk -F'[ ,]' '/^scsi0:/ {print $2}')
 echo "scsi0 maps to: $DISK"
-# tank-vmdata:vm-9000-disk-1   →   /dev/zvol/tank/vmdata/vm-9000-disk-1
+# local-zfs:vm-9000-disk-1     →   /dev/zvol/rpool/data/vm-9000-disk-1
 # local:9000/vm-9000-disk-1.qcow2 →  /var/lib/vz/images/9000/vm-9000-disk-1.qcow2
 
 # Stop the VM (must be off for libguestfs to lock the device).
 qm stop 9000 2>/dev/null || true
 
-# For tank-vmdata (ZFS zvol — the path you'll see in this lab):
-virt-customize -a /dev/zvol/tank/vmdata/vm-9000-disk-1 \
+# For local-zfs (ZFS zvol — the path you'll see in this lab):
+virt-customize -a /dev/zvol/rpool/data/vm-9000-disk-1 \
   --install qemu-guest-agent \
   --truncate /etc/machine-id
 
@@ -296,9 +301,9 @@ lease. (We use static IPs anyway, but the principle stands.)
 
 > **If `virt-customize` fails with "Permission denied" on the zvol:**
 > ensure the VM is fully stopped (`qm status 9000` shows `stopped`) and
-> that no other process holds the device (`lsof /dev/zvol/tank/vmdata/vm-9000-disk-1`
+> that no other process holds the device (`lsof /dev/zvol/rpool/data/vm-9000-disk-1`
 > should be empty). If `qm template 9000` has already been run, the zvol
-> is read-only — undo with `zfs set readonly=off tank/vmdata/vm-9000-disk-1`,
+> is read-only — undo with `zfs set readonly=off rpool/data/vm-9000-disk-1`,
 > customize, then re-template.
 
 ### 3.4 Convert to a template
@@ -347,15 +352,17 @@ creating siblings of it. This is a recovery point if Phase 1 goes sideways
 and you want to start over.
 
 ```sh
-zfs snapshot tank/vmdata@phase1-pre-terraform
-zfs snapshot rpool/data@phase1-pre-terraform 2>/dev/null || true
+# Single-pool deviation: only rpool/data exists right now. When tank
+# arrives (per ADR-0011 migration plan), add a `tank/vmdata@phase1-pre-terraform`
+# snapshot at that point too.
+zfs snapshot rpool/data@phase1-pre-terraform
 zfs list -t snapshot
 ```
 
 To roll back later (from console only — destructive):
 
 ```sh
-zfs rollback tank/vmdata@phase1-pre-terraform
+zfs rollback rpool/data@phase1-pre-terraform
 ```
 
 ---
@@ -479,7 +486,7 @@ resource "proxmox_vm_qemu" "vm" {
 
   disk {
     type     = "scsi"
-    storage  = "tank-vmdata"
+    storage  = "local-zfs"     # Phase 1 deviation per ADR-0011; flip to "tank-vmdata" post-migration
     size     = "${each.value.disk_gb}G"
     discard  = "on"
     iothread = 1
@@ -704,7 +711,7 @@ git push origin phase1-vm-bringup
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| `apply` hangs forever on first VM | Cloud-init disk on wrong bus | `qm set <vmid> --ide2 tank-vmdata:cloudinit`, retry. |
+| `apply` hangs forever on first VM | Cloud-init disk on wrong bus | `qm set <vmid> --ide2 local-zfs:cloudinit`, retry. |
 | All 6 VMs get `10.10.20.21` | Same machine-id (`/etc/machine-id` not truncated in template) | Re-run Step 3.3, recreate template, re-clone. |
 | Provider 401 errors | Token typo or `privsep=1` mis-set | `pveum user token list terraform@pve` to verify. |
 | Plan shows constant drift on `network[0].macaddr` | Telmate regenerates MACs | Already covered by `ignore_changes = [network]` in main.tf. |
@@ -715,8 +722,9 @@ git push origin phase1-vm-bringup
 1. `qm rollback <vmid> phase1-base` — revert one VM.
 2. `terraform destroy -target=proxmox_vm_qemu.vm[\"lab-wk02\"]` then re-apply.
 3. `terraform destroy` (all six). Template stays intact.
-4. `zfs rollback tank/vmdata@phase1-pre-terraform`. Wipes everything Phase 1
-   touched on the data pool. Console-only, no undo.
+4. `zfs rollback rpool/data@phase1-pre-terraform`. Wipes everything Phase 1
+   touched on the data pool. Console-only, no undo. (Post-migration this
+   also takes out `tank/vmdata@phase1-pre-terraform` per ADR-0011.)
 
 ---
 
