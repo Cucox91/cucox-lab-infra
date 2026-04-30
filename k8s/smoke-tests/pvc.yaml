@@ -1,0 +1,47 @@
+# k8s/smoke-tests/pvc.yaml — one-shot PVC + consumer Pod for confirming
+# the default StorageClass (local-path) provisions correctly end-to-end.
+# See runbook 02 §7.
+#
+# Why a consumer Pod is required: k3s's local-path-provisioner uses
+# `volumeBindingMode: WaitForFirstConsumer`, so the PVC stays Pending
+# until a Pod schedules and mounts it. The Pod below writes a file to
+# the volume, reads it back, and exits — proving provisioning + RW work.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pvc-test
+  namespace: default
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pvc-test-consumer
+  namespace: default
+spec:
+  restartPolicy: Never
+  containers:
+    - name: writer
+      image: busybox:1.36
+      command:
+        - sh
+        - -c
+        - |
+          set -e
+          echo "hello from $(hostname) at $(date -u +%FT%TZ)" > /data/test.txt
+          echo "--- contents ---"
+          cat /data/test.txt
+          echo "--- mount info ---"
+          df -h /data
+      volumeMounts:
+        - name: data
+          mountPath: /data
+  volumes:
+    - name: data
+      persistentVolumeClaim:
+        claimName: pvc-test
