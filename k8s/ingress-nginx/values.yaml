@@ -1,0 +1,23 @@
+# k8s/ingress-nginx/values.yaml — ingress-nginx Helm values for Cucox Lab.
+# See ARCHITECTURE.md §5.4 (ingress topology) and runbook 02 §6.
+# The VIP is pinned to 10.10.20.50 so runbook 03 (Cloudflared) has a
+# stable target; the rest of the MetalLB pool (.51–.99) stays unallocated
+# for future LoadBalancer Services.
+controller:
+  replicaCount: 2
+  service:
+    type: LoadBalancer
+    annotations:
+      metallb.universe.tf/loadBalancerIPs: 10.10.20.50    # pin the VIP
+  ingressClassResource:
+    name: nginx
+    default: true
+  watchIngressWithoutClass: true
+  config:
+    use-forwarded-headers: "true"        # cloudflared sets X-Forwarded-*
+    enable-real-ip: "true"
+    proxy-body-size: "32m"
+  metrics:
+    enabled: true                         # for Phase 2 Prometheus
+    serviceMonitor:
+      enabled: false                      # turn on once kube-prometheus-stack lands

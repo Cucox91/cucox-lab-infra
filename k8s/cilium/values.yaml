@@ -1,0 +1,24 @@
+# k8s/cilium/values.yaml — Helm values for Cilium 1.16 on the Cucox Lab
+# k3s cluster. See ADR-0002 (CNI: Cilium) and runbook 02 §4 for rationale.
+ipam:
+  mode: kubernetes
+kubeProxyReplacement: true       # Cilium replaces kube-proxy entirely
+k8sServiceHost: 10.10.20.21
+k8sServicePort: 6443
+hubble:
+  enabled: true
+  relay:
+    enabled: true
+  ui:
+    enabled: true
+operator:
+  replicas: 2
+routingMode: native              # native L3 (no VXLAN/Geneve overlay)
+ipv4NativeRoutingCIDR: 10.42.0.0/16
+autoDirectNodeRoutes: true
+bpf:
+  masquerade: true
+loadBalancer:
+  algorithm: maglev              # consistent hashing — useful for the broker work later
+encryption:
+  enabled: false                 # Phase 5 may flip this on

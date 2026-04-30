@@ -10,6 +10,40 @@ and every goal should be visible from this document.
 
 ---
 
+## 0. Architecture at a glance
+
+The diagram below is a single-page rendering of the Phase 1 / Phase 2 target
+state described in §§ 1–10. It is the orientation map: every box has a
+corresponding section in this document, and every line on the diagram is
+either a physical link, a logical traffic flow, or a control-plane
+relationship that some section explains and constrains.
+
+![Cucox Lab — Phase 1 / Phase 2 architecture](./docs/diagrams/cucox-lab-architecture.svg)
+
+**How to read it.** Top-to-bottom is roughly outside → inside: Internet →
+Cloudflare (DNS / Access / Tunnel) → UCG-Max + Office Switch + U7 Pro AP →
+Proxmox host (one big container) → three VLAN swimlanes inside the host
+(mgmt / cluster / dmz) → ZFS pools at the bottom. The orange line is the
+only path Internet traffic takes into the lab — Cloudflare Tunnel out to
+`lab-edge01`, then HTTPS into the cluster ingress VIP. The footer
+summarizes the inter-VLAN firewall matrix from § 3.3.
+
+**Files.**
+
+- Editable source: [`docs/diagrams/cucox-lab-architecture.drawio`](./docs/diagrams/cucox-lab-architecture.drawio)
+  — open in [draw.io desktop](https://github.com/jgraph/drawio-desktop) or
+  [diagrams.net](https://app.diagrams.net).
+- Rendered SVG (embedded above): [`docs/diagrams/cucox-lab-architecture.svg`](./docs/diagrams/cucox-lab-architecture.svg).
+- Diagram conventions and planned future diagrams: [`docs/diagrams/README.md`](./docs/diagrams/README.md).
+
+When you change any of the architecture below, update the diagram in the same
+commit. The `.drawio` is source-of-truth; re-export the SVG to the same path
+before committing so the two never drift. ADRs that materially change the
+diagram (new VLAN, new edge component, change to firewall posture, etc.)
+should call that out in the ADR's "Diagram impact" line.
+
+---
+
 ## 1. Goals
 
 The lab exists to serve two intertwined objectives:
@@ -107,6 +141,13 @@ Internet
    ├── SSID: HouseWiFi          → Default LAN (existing)
    └── SSID: CucoxLab-Mgmt      → mgmt VLAN 10 (new, for operator access)
 ```
+
+> The same topology with the cluster, edge VM, observability stack, and
+> firewall matrix overlaid is rendered in
+> [`docs/diagrams/cucox-lab-architecture.svg`](./docs/diagrams/cucox-lab-architecture.svg)
+> (see § 0). This ASCII view stays as the canonical text representation;
+> the SVG stays as the at-a-glance view. Both are updated in the same
+> commit when topology changes.
 
 **VLAN model on the Proxmox host:** traditional Linux VLAN — one Linux
 bridge per VLAN, fed by tagged kernel sub-interfaces of the physical

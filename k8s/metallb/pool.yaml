@@ -1,0 +1,21 @@
+# k8s/metallb/pool.yaml — MetalLB L2 pool for the Cucox Lab.
+# See ARCHITECTURE.md §3.2 (VLAN address ranges) and §5.4 (MetalLB pool).
+# The pool occupies the static-VIP slice of the cluster VLAN (.50–.99);
+# .50 is reserved for ingress-nginx (Step 6), .51–.99 are unallocated.
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: lab-pool
+  namespace: metallb-system
+spec:
+  addresses:
+    - 10.10.20.50-10.10.20.99
+---
+apiVersion: metallb.io/v1beta1
+kind: L2Advertisement
+metadata:
+  name: lab-pool-l2
+  namespace: metallb-system
+spec:
+  ipAddressPools:
+    - lab-pool

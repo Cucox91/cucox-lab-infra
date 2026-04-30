@@ -1,0 +1,325 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1700 2000" font-family="Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arr" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L9,3 z" fill="#555"/>
+    </marker>
+    <marker id="arrCF" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L9,3 z" fill="#d79b00"/>
+    </marker>
+  </defs>
+
+  <!-- Title -->
+  <text x="850" y="36" text-anchor="middle" font-size="20" font-weight="bold">Cucox Lab — Architecture (Phase 1 / Phase 2 target state)</text>
+  <text x="850" y="56" text-anchor="middle" font-size="12" fill="#555">Owner: Raziel · Source: ARCHITECTURE.md · Generated: 2026-04-29</text>
+
+  <!-- Internet -->
+  <ellipse cx="850" cy="110" rx="80" ry="36" fill="#dae8fc" stroke="#6c8ebf"/>
+  <text x="850" y="115" text-anchor="middle" font-size="14" font-weight="bold">Internet</text>
+
+  <!-- Cloudflare -->
+  <rect x="540" y="180" width="620" height="110" rx="8" fill="#ffe6cc" stroke="#d79b00"/>
+  <text x="850" y="200" text-anchor="middle" font-size="13" font-weight="bold">Cloudflare (cucox.me · exycle.com · cucoxcorp.com)</text>
+  <rect x="560" y="215" width="170" height="60" fill="#fff2cc" stroke="#d6b656"/>
+  <text x="645" y="235" text-anchor="middle" font-size="11" font-weight="bold">Cloudflare DNS</text>
+  <text x="645" y="250" text-anchor="middle" font-size="10">authoritative zones</text>
+  <text x="645" y="265" text-anchor="middle" font-size="10">CNAME → tunnel UUID</text>
+  <rect x="760" y="215" width="170" height="60" fill="#fff2cc" stroke="#d6b656"/>
+  <text x="845" y="235" text-anchor="middle" font-size="11" font-weight="bold">Cloudflare Access</text>
+  <text x="845" y="250" text-anchor="middle" font-size="10">SSO + WebAuthn</text>
+  <text x="845" y="265" text-anchor="middle" font-size="10">in front of admin UIs</text>
+  <rect x="960" y="215" width="180" height="60" fill="#fff2cc" stroke="#d6b656"/>
+  <text x="1050" y="235" text-anchor="middle" font-size="11" font-weight="bold">Cloudflare Tunnel</text>
+  <text x="1050" y="250" text-anchor="middle" font-size="10">cucox-lab-prod</text>
+  <text x="1050" y="265" text-anchor="middle" font-size="10">outbound 443/7844</text>
+
+  <line x1="850" y1="146" x2="850" y2="180" stroke="#6c8ebf" stroke-width="2" marker-end="url(#arr)"/>
+
+  <!-- House network swimlane -->
+  <rect x="40" y="320" width="1620" height="280" fill="#f5f5f5" stroke="#666"/>
+  <text x="60" y="340" font-size="13" font-style="italic">Home network — Default VLAN (untouched). Lab is firewalled-off from this segment.</text>
+
+  <rect x="740" y="360" width="180" height="80" fill="#dae8fc" stroke="#6c8ebf"/>
+  <text x="830" y="380" text-anchor="middle" font-size="12" font-weight="bold">UCG-Max</text>
+  <text x="830" y="395" text-anchor="middle" font-size="10">UniFi 9.x ZBF</text>
+  <text x="830" y="410" text-anchor="middle" font-size="10">DHCP / Inter-VLAN FW</text>
+  <text x="830" y="425" text-anchor="middle" font-size="10">Local-In rules</text>
+
+  <rect x="740" y="480" width="180" height="80" fill="#dae8fc" stroke="#6c8ebf"/>
+  <text x="830" y="500" text-anchor="middle" font-size="12" font-weight="bold">Office Switch</text>
+  <text x="830" y="515" text-anchor="middle" font-size="10">2.5 GbE backbone</text>
+  <text x="830" y="530" text-anchor="middle" font-size="10">trunk profile: lab-trunk</text>
+
+  <rect x="1120" y="360" width="240" height="80" fill="#dae8fc" stroke="#6c8ebf"/>
+  <text x="1240" y="380" text-anchor="middle" font-size="12" font-weight="bold">U7 Pro AP</text>
+  <text x="1240" y="400" text-anchor="middle" font-size="10">SSID: HouseWiFi → Default</text>
+  <text x="1240" y="418" text-anchor="middle" font-size="10">SSID: CucoxLab-Mgmt → VLAN 10</text>
+
+  <rect x="80" y="370" width="200" height="60" fill="#e1d5e7" stroke="#9673a6"/>
+  <text x="180" y="390" text-anchor="middle" font-size="11" font-weight="bold">Mac Mini M4</text>
+  <text x="180" y="408" text-anchor="middle" font-size="10">CI runner / multi-arch buildx</text>
+
+  <rect x="80" y="480" width="160" height="60" fill="#f8cecc" stroke="#b85450"/>
+  <text x="160" y="500" text-anchor="middle" font-size="11" font-weight="bold">NAS</text>
+  <text x="160" y="518" text-anchor="middle" font-size="9">invariant: lab→NAS BLOCKED</text>
+
+  <rect x="260" y="480" width="140" height="60" fill="#e1d5e7" stroke="#9673a6"/>
+  <text x="330" y="500" text-anchor="middle" font-size="11">Work laptop</text>
+  <text x="330" y="518" text-anchor="middle" font-size="10">Default LAN</text>
+
+  <rect x="420" y="480" width="220" height="60" fill="#f5f5f5" stroke="#999" stroke-dasharray="4,2"/>
+  <text x="530" y="500" text-anchor="middle" font-size="11">Pi5 / Pi5 / Pi4</text>
+  <text x="530" y="518" text-anchor="middle" font-size="9">Phase 5 ARM workers — deferred</text>
+
+  <rect x="1380" y="480" width="260" height="80" fill="#d5e8d4" stroke="#82b366"/>
+  <text x="1510" y="500" text-anchor="middle" font-size="12" font-weight="bold">MacBook Air M4 (operator)</text>
+  <text x="1510" y="516" text-anchor="middle" font-size="10">Claude Code · kubectl · terraform · ssh · sops</text>
+  <text x="1510" y="532" text-anchor="middle" font-size="10">Wi-Fi → CucoxLab-Mgmt SSID → VLAN 10</text>
+
+  <line x1="850" y1="290" x2="830" y2="360" stroke="#d79b00" stroke-width="2" stroke-dasharray="6,3" marker-end="url(#arrCF)"/>
+  <line x1="830" y1="440" x2="830" y2="480" stroke="#6c8ebf" stroke-width="2" marker-end="url(#arr)"/>
+  <text x="838" y="465" font-size="9">trunk</text>
+  <line x1="920" y1="400" x2="1120" y2="400" stroke="#6c8ebf" stroke-width="2" marker-end="url(#arr)"/>
+  <text x="1010" y="395" text-anchor="middle" font-size="9">trunk + Default</text>
+  <line x1="1240" y1="440" x2="1380" y2="500" stroke="#82b366" stroke-width="2" stroke-dasharray="4,2" marker-end="url(#arr)"/>
+  <text x="1300" y="460" font-size="9">WPA3 — VLAN 10</text>
+
+  <!-- Proxmox host container -->
+  <rect x="40" y="640" width="1620" height="1180" fill="#fafcff" stroke="#6c8ebf" stroke-width="2"/>
+  <text x="60" y="664" font-size="14" font-weight="bold">Proxmox VE Host — lab-prox01 · Ryzen 9 5950X (16C/32T) · 64 GB DDR4 · 2× NVMe Gen4 · 2.5 GbE NIC</text>
+
+  <rect x="80" y="680" width="1540" height="60" fill="#fff2cc" stroke="#d6b656"/>
+  <text x="850" y="703" text-anchor="middle" font-size="12" font-weight="bold">vmbr0 — physical 2.5 GbE — trunk: native VLAN 10 (mgmt), tagged VLAN 20 (cluster), VLAN 30 (dmz)</text>
+  <text x="850" y="722" text-anchor="middle" font-size="11">sub-interfaces: vmbr0 (mgmt) · vmbr0.20 (cluster) · vmbr0.30 (dmz)</text>
+
+  <line x1="830" y1="560" x2="830" y2="680" stroke="#6c8ebf" stroke-width="2" marker-end="url(#arr)"/>
+  <text x="840" y="630" font-size="10">trunk (native=10, tagged=20,30)</text>
+
+  <!-- VLAN 10 mgmt -->
+  <rect x="80" y="760" width="320" height="880" fill="#d5e8d4" stroke="#82b366"/>
+  <text x="100" y="782" font-size="12" font-weight="bold">VLAN 10 — lab-mgmt (10.10.10.0/24) · gw .1</text>
+  <rect x="100" y="800" width="280" height="70" fill="#fff" stroke="#82b366"/>
+  <text x="240" y="820" text-anchor="middle" font-size="11" font-weight="bold">Proxmox host SVI</text>
+  <text x="240" y="838" text-anchor="middle" font-size="10">10.10.10.10</text>
+  <text x="240" y="854" text-anchor="middle" font-size="10">https://:8006 · ssh :22</text>
+
+  <rect x="100" y="890" width="280" height="160" fill="#fff2cc" stroke="#d6b656"/>
+  <text x="110" y="908" font-size="11" font-weight="bold">Operator path:</text>
+  <text x="110" y="924" font-size="10">CucoxLab-Mgmt SSID → VLAN 10</text>
+  <text x="110" y="940" font-size="10">reaches: Proxmox UI · k3s API (6443)</text>
+  <text x="110" y="956" font-size="10">all VM SSH</text>
+  <text x="110" y="980" font-size="11" font-weight="bold">Default LAN → mgmt:</text>
+  <text x="110" y="996" font-size="10">Operator-IP only · 22/443/6443/8006</text>
+  <text x="110" y="1012" font-size="10">(fallback when off-SSID)</text>
+
+  <rect x="100" y="1070" width="280" height="170" fill="#f8cecc" stroke="#b85450"/>
+  <text x="110" y="1088" font-size="11" font-weight="bold">Internal DNS: *.lab.cucox.local</text>
+  <text x="110" y="1104" font-size="10">in-cluster: CoreDNS (k3s)</text>
+  <text x="110" y="1120" font-size="10">VM names: UCG-Max DNS</text>
+  <text x="110" y="1148" font-size="11" font-weight="bold" fill="#b85450">CAUTION: Local-In rules</text>
+  <text x="110" y="1164" font-size="10">(zone → Gateway) are a separate</text>
+  <text x="110" y="1180" font-size="10">cell from inter-VLAN.</text>
+  <text x="110" y="1196" font-size="10">Return-traffic needs its own</text>
+  <text x="110" y="1212" font-size="10">Established,Related rule.</text>
+  <text x="110" y="1228" font-size="10">See ADR-0013 / runbook 01.</text>
+
+  <!-- VLAN 20 cluster -->
+  <rect x="420" y="760" width="900" height="880" fill="#dae8fc" stroke="#6c8ebf"/>
+  <text x="440" y="782" font-size="12" font-weight="bold">VLAN 20 — lab-cluster (10.10.20.0/24) · k3s HA + Cilium</text>
+
+  <rect x="440" y="800" width="160" height="70" fill="#fff" stroke="#6c8ebf" stroke-width="1.5"/>
+  <text x="520" y="820" text-anchor="middle" font-size="11" font-weight="bold">lab-cp01</text>
+  <text x="520" y="838" text-anchor="middle" font-size="10">.21 · 4vCPU · 8 GB</text>
+  <text x="520" y="854" text-anchor="middle" font-size="10">k3s server (init)</text>
+
+  <rect x="620" y="800" width="160" height="70" fill="#fff" stroke="#6c8ebf"/>
+  <text x="700" y="820" text-anchor="middle" font-size="11" font-weight="bold">lab-cp02</text>
+  <text x="700" y="838" text-anchor="middle" font-size="10">.22 · 4vCPU · 8 GB</text>
+  <text x="700" y="854" text-anchor="middle" font-size="10">k3s server (join)</text>
+
+  <rect x="800" y="800" width="160" height="70" fill="#fff" stroke="#6c8ebf"/>
+  <text x="880" y="820" text-anchor="middle" font-size="11" font-weight="bold">lab-cp03</text>
+  <text x="880" y="838" text-anchor="middle" font-size="10">.23 · 4vCPU · 8 GB</text>
+  <text x="880" y="854" text-anchor="middle" font-size="10">k3s server (join)</text>
+
+  <text x="700" y="887" text-anchor="middle" font-size="10" font-style="italic">3× control-plane (embedded etcd HA — quorum survives 1 loss)</text>
+
+  <line x1="600" y1="835" x2="620" y2="835" stroke="#3c78d8" stroke-dasharray="3,2"/>
+  <line x1="780" y1="835" x2="800" y2="835" stroke="#3c78d8" stroke-dasharray="3,2"/>
+  <path d="M520,800 Q700,770 880,800" fill="none" stroke="#3c78d8" stroke-dasharray="3,2"/>
+
+  <rect x="1000" y="800" width="155" height="70" fill="#fff" stroke="#6c8ebf"/>
+  <text x="1078" y="820" text-anchor="middle" font-size="11" font-weight="bold">lab-wk01</text>
+  <text x="1078" y="838" text-anchor="middle" font-size="10">.31 · 6vCPU · 16 GB</text>
+  <text x="1078" y="854" text-anchor="middle" font-size="10">k3s agent</text>
+
+  <rect x="1160" y="800" width="155" height="70" fill="#fff" stroke="#6c8ebf"/>
+  <text x="1238" y="820" text-anchor="middle" font-size="11" font-weight="bold">lab-wk02</text>
+  <text x="1238" y="838" text-anchor="middle" font-size="10">.32 · 6vCPU · 16 GB</text>
+  <text x="1238" y="854" text-anchor="middle" font-size="10">k3s agent</text>
+
+  <text x="1158" y="887" text-anchor="middle" font-size="10" font-style="italic">2× worker</text>
+
+  <!-- k3s cluster inner box -->
+  <rect x="440" y="900" width="860" height="540" fill="#e8f0fe" stroke="#3c78d8" rx="6"/>
+  <text x="450" y="922" font-size="12" font-weight="bold">k3s cluster — Pod CIDR 10.42.0.0/16 · Service CIDR 10.43.0.0/16</text>
+
+  <rect x="460" y="940" width="200" height="80" fill="#fff2cc" stroke="#d6b656"/>
+  <text x="560" y="958" text-anchor="middle" font-size="11" font-weight="bold">Cilium CNI</text>
+  <text x="560" y="976" text-anchor="middle" font-size="10">eBPF datapath · Hubble</text>
+  <text x="560" y="992" text-anchor="middle" font-size="10">NetworkPolicy + L7</text>
+  <text x="560" y="1008" text-anchor="middle" font-size="10">(Flannel disabled)</text>
+
+  <rect x="680" y="940" width="200" height="80" fill="#fff2cc" stroke="#d6b656"/>
+  <text x="780" y="958" text-anchor="middle" font-size="11" font-weight="bold">MetalLB (L2)</text>
+  <text x="780" y="976" text-anchor="middle" font-size="10">Pool 10.10.20.50–.99</text>
+  <text x="780" y="992" text-anchor="middle" font-size="10">allocates Service VIPs</text>
+
+  <rect x="900" y="940" width="200" height="80" fill="#d5e8d4" stroke="#82b366"/>
+  <text x="1000" y="958" text-anchor="middle" font-size="11" font-weight="bold">ingress-nginx</text>
+  <text x="1000" y="976" text-anchor="middle" font-size="10">Service type=LoadBalancer</text>
+  <text x="1000" y="992" text-anchor="middle" font-size="10">VIP 10.10.20.50</text>
+  <text x="1000" y="1008" text-anchor="middle" font-size="10">TLS terminates here</text>
+
+  <rect x="1120" y="940" width="170" height="80" fill="#fff2cc" stroke="#d6b656"/>
+  <text x="1205" y="958" text-anchor="middle" font-size="11" font-weight="bold">storage class</text>
+  <text x="1205" y="976" text-anchor="middle" font-size="10">local-path-provisioner</text>
+  <text x="1205" y="992" text-anchor="middle" font-size="10">Phase 1</text>
+  <text x="1205" y="1008" text-anchor="middle" font-size="10">→ Longhorn (Phase 4)</text>
+
+  <rect x="460" y="1050" width="640" height="160" fill="#e1d5e7" stroke="#9673a6" rx="4"/>
+  <text x="470" y="1070" font-size="12" font-weight="bold">kube-prometheus-stack — Helm chart</text>
+  <rect x="480" y="1085" width="180" height="100" fill="#fff" stroke="#9673a6"/>
+  <text x="570" y="1103" text-anchor="middle" font-size="11" font-weight="bold">Prometheus</text>
+  <text x="570" y="1121" text-anchor="middle" font-size="10">1× replica</text>
+  <text x="570" y="1137" text-anchor="middle" font-size="10">30d retention</text>
+  <text x="570" y="1153" text-anchor="middle" font-size="10">PV via local-path</text>
+
+  <rect x="680" y="1085" width="200" height="100" fill="#fff" stroke="#9673a6"/>
+  <text x="780" y="1103" text-anchor="middle" font-size="11" font-weight="bold">Grafana</text>
+  <text x="780" y="1121" text-anchor="middle" font-size="10">1× replica</text>
+  <text x="780" y="1137" text-anchor="middle" font-size="10">behind Cloudflare Access</text>
+  <text x="780" y="1153" text-anchor="middle" font-size="10">cluster · CP · workload</text>
+
+  <rect x="900" y="1085" width="180" height="100" fill="#fff" stroke="#9673a6"/>
+  <text x="990" y="1103" text-anchor="middle" font-size="11" font-weight="bold">node_exporter (DS)</text>
+  <text x="990" y="1121" text-anchor="middle" font-size="10">kube-state-metrics</text>
+  <text x="990" y="1137" text-anchor="middle" font-size="10">Default ServiceMonitors</text>
+  <text x="990" y="1153" text-anchor="middle" font-size="10">(CP-targeting)</text>
+
+  <rect x="460" y="1230" width="820" height="190" fill="#fff4e6" stroke="#d79b00" rx="4"/>
+  <text x="470" y="1250" font-size="12" font-weight="bold">Workload namespaces — migrated from Azure (Phase 3)</text>
+  <rect x="480" y="1265" width="200" height="120" fill="#fff" stroke="#d79b00"/>
+  <text x="580" y="1285" text-anchor="middle" font-size="11" font-weight="bold">cucox-me</text>
+  <text x="580" y="1303" text-anchor="middle" font-size="10">MERN pilot</text>
+  <text x="580" y="1319" text-anchor="middle" font-size="10">Mongo on-cluster</text>
+  <text x="580" y="1340" text-anchor="middle" font-size="10">cucox.me</text>
+  <text x="580" y="1356" text-anchor="middle" font-size="10">www.cucox.me</text>
+
+  <rect x="700" y="1265" width="200" height="120" fill="#fff" stroke="#d79b00"/>
+  <text x="800" y="1285" text-anchor="middle" font-size="11" font-weight="bold">exycle</text>
+  <text x="800" y="1303" text-anchor="middle" font-size="10">.NET migrated</text>
+  <text x="800" y="1319" text-anchor="middle" font-size="10">SQL on-cluster</text>
+  <text x="800" y="1340" text-anchor="middle" font-size="10">exycle.com</text>
+  <text x="800" y="1356" text-anchor="middle" font-size="10">www.exycle.com</text>
+
+  <rect x="920" y="1265" width="200" height="120" fill="#fff" stroke="#d79b00"/>
+  <text x="1020" y="1285" text-anchor="middle" font-size="11" font-weight="bold">cucoxcorp</text>
+  <text x="1020" y="1303" text-anchor="middle" font-size="10">.NET / MERN — last</text>
+  <text x="1020" y="1319" text-anchor="middle" font-size="10">highest stakes</text>
+  <text x="1020" y="1340" text-anchor="middle" font-size="10">www.cucoxcorp.com</text>
+
+  <rect x="1140" y="1265" width="120" height="120" fill="#fff2cc" stroke="#d6b656" stroke-dasharray="4,2"/>
+  <text x="1200" y="1285" text-anchor="middle" font-size="11" font-weight="bold">object store</text>
+  <text x="1200" y="1303" text-anchor="middle" font-size="10">MinIO</text>
+  <text x="1200" y="1319" text-anchor="middle" font-size="10">ex-Azure Blob</text>
+  <text x="1200" y="1340" text-anchor="middle" font-size="10">Phase 3</text>
+
+  <rect x="440" y="1460" width="500" height="170" fill="#fff2cc" stroke="#d6b656"/>
+  <text x="450" y="1480" font-size="11" font-weight="bold">Intra-cluster traffic notes</text>
+  <text x="450" y="1500" font-size="10">· kubelet, API, Pod-to-Pod through Cilium (eBPF)</text>
+  <text x="450" y="1518" font-size="10">· Pods get Pod CIDR addresses (10.42.0.0/16)</text>
+  <text x="450" y="1536" font-size="10">· Services get Service CIDR (10.43.0.0/16)</text>
+  <text x="450" y="1554" font-size="10">· LoadBalancer Services get MetalLB VIPs in 10.10.20.50–99</text>
+  <text x="450" y="1572" font-size="10">· cluster → mgmt: only 53 (CoreDNS upstream) and 123 (NTP)</text>
+  <text x="450" y="1590" font-size="10">· cluster → Default LAN: NONE (NAS isolated)</text>
+  <text x="450" y="1608" font-size="10">· Phase 4: Longhorn replaces local-path; Loki adds logs</text>
+
+  <!-- VLAN 30 dmz -->
+  <rect x="1340" y="760" width="280" height="880" fill="#f8cecc" stroke="#b85450"/>
+  <text x="1360" y="782" font-size="12" font-weight="bold">VLAN 30 — lab-dmz (10.10.30.0/24)</text>
+  <text x="1360" y="798" font-size="10" font-style="italic">most-exposed segment</text>
+
+  <rect x="1360" y="820" width="240" height="100" fill="#fff" stroke="#b85450"/>
+  <text x="1480" y="840" text-anchor="middle" font-size="12" font-weight="bold">lab-edge01</text>
+  <text x="1480" y="858" text-anchor="middle" font-size="10">.21 · 2vCPU · 4 GB · 20 GB</text>
+  <text x="1480" y="876" text-anchor="middle" font-size="10">cloudflared connector</text>
+  <text x="1480" y="892" text-anchor="middle" font-size="10">outbound 443/7844 only</text>
+
+  <rect x="1360" y="940" width="240" height="200" fill="#fff2cc" stroke="#d6b656"/>
+  <text x="1370" y="960" font-size="11" font-weight="bold">cloudflared ingress dispatch</text>
+  <text x="1370" y="976" font-size="10">(by Host: header)</text>
+  <text x="1370" y="998" font-size="10">cucox.me / www.cucox.me</text>
+  <text x="1370" y="1014" font-size="10">exycle.com / www.exycle.com</text>
+  <text x="1370" y="1030" font-size="10">www.cucoxcorp.com</text>
+  <text x="1370" y="1054" font-size="10" font-style="italic">all → ingress-nginx VIP</text>
+  <text x="1370" y="1070" font-size="10" font-style="italic">default → http_status:404</text>
+
+  <rect x="1360" y="1160" width="240" height="200" fill="#f8cecc" stroke="#b85450"/>
+  <text x="1370" y="1180" font-size="11" font-weight="bold">Firewall posture (dmz)</text>
+  <text x="1370" y="1198" font-size="10">dmz → cluster: 443 to ingress</text>
+  <text x="1370" y="1214" font-size="10">dmz → mgmt: NONE</text>
+  <text x="1370" y="1230" font-size="10">Internet → dmz: NONE</text>
+  <text x="1370" y="1246" font-size="10">(no port-forwards)</text>
+  <text x="1370" y="1262" font-size="10">dmz → Default LAN: NONE</text>
+  <text x="1370" y="1290" font-size="10" font-style="italic">Phase 5: cloudflared moves</text>
+  <text x="1370" y="1306" font-size="10" font-style="italic">into the cluster as a Deployment</text>
+  <text x="1370" y="1322" font-size="10" font-style="italic">(replicas across workers, HA).</text>
+
+  <!-- Storage pools -->
+  <ellipse cx="220" cy="1670" rx="140" ry="20" fill="#fff2cc" stroke="#d6b656"/>
+  <rect x="80" y="1670" width="280" height="80" fill="#fff2cc" stroke="#d6b656"/>
+  <ellipse cx="220" cy="1750" rx="140" ry="20" fill="#fff2cc" stroke="#d6b656"/>
+  <line x1="80" y1="1670" x2="80" y2="1750" stroke="#d6b656"/>
+  <line x1="360" y1="1670" x2="360" y2="1750" stroke="#d6b656"/>
+  <text x="220" y="1690" text-anchor="middle" font-size="11" font-weight="bold">ZFS rpool — NVMe #1 (1 TB Gen4)</text>
+  <text x="220" y="1708" text-anchor="middle" font-size="10">Proxmox root · ISO · templates · snapshots</text>
+  <text x="220" y="1726" text-anchor="middle" font-size="10">compression=lz4 · atime=off</text>
+
+  <ellipse cx="520" cy="1670" rx="140" ry="20" fill="#fff2cc" stroke="#d6b656"/>
+  <rect x="380" y="1670" width="280" height="80" fill="#fff2cc" stroke="#d6b656"/>
+  <ellipse cx="520" cy="1750" rx="140" ry="20" fill="#fff2cc" stroke="#d6b656"/>
+  <line x1="380" y1="1670" x2="380" y2="1750" stroke="#d6b656"/>
+  <line x1="660" y1="1670" x2="660" y2="1750" stroke="#d6b656"/>
+  <text x="520" y="1690" text-anchor="middle" font-size="11" font-weight="bold">ZFS tank — NVMe #2 (1 TB Gen4, ex-Pi5)</text>
+  <text x="520" y="1708" text-anchor="middle" font-size="10">tank/vmdata (16K) · tank/bench (128K)</text>
+  <text x="520" y="1726" text-anchor="middle" font-size="10">ARC capped at 16 GB system-wide</text>
+
+  <rect x="700" y="1660" width="320" height="120" fill="#f5f5f5" stroke="#999"/>
+  <text x="710" y="1680" font-size="11" font-weight="bold">Storage strategy</text>
+  <text x="710" y="1700" font-size="10">Two independent pools — not striped or mirrored.</text>
+  <text x="710" y="1716" font-size="10">Losing one drive loses one pool, not both.</text>
+  <text x="710" y="1734" font-size="10">Bench scratch isolated from VM-disk I/O.</text>
+  <text x="710" y="1752" font-size="10">Terraform points new VM disks at tank by default.</text>
+
+  <!-- Cloudflare Tunnel → edge01 (long arrow) -->
+  <path d="M1050,290 C1300,400 1480,650 1480,820" fill="none" stroke="#d79b00" stroke-width="3" marker-end="url(#arrCF)"/>
+  <text x="1310" y="500" font-size="11" font-weight="bold" fill="#d79b00">Cloudflare Tunnel (outbound 443/7844)</text>
+
+  <!-- cloudflared → ingress dashed orange -->
+  <path d="M1360,870 C1200,870 1100,940 1000,940" fill="none" stroke="#d79b00" stroke-width="2" stroke-dasharray="6,3" marker-end="url(#arrCF)"/>
+  <text x="1100" y="900" font-size="10" fill="#d79b00">HTTPS to VIP 10.10.20.50 (dmz → cluster: 443)</text>
+
+  <!-- vmbr → VLANs -->
+  <line x1="240" y1="740" x2="240" y2="760" stroke="#82b366" stroke-width="2" marker-end="url(#arr)"/>
+  <line x1="850" y1="740" x2="850" y2="760" stroke="#3c78d8" stroke-width="2" marker-end="url(#arr)"/>
+  <line x1="1480" y1="740" x2="1480" y2="760" stroke="#b85450" stroke-width="2" marker-end="url(#arr)"/>
+
+  <!-- Firewall summary -->
+  <rect x="40" y="1840" width="1620" height="140" fill="#fffbe5" stroke="#d6b656"/>
+  <text x="60" y="1860" font-size="12" font-weight="bold">Inter-VLAN firewall (UCG-Max — UniFi 9.x ZBF, deny-default)</text>
+  <text x="60" y="1880" font-size="10" font-family="Courier New, monospace">Default → mgmt: operator-IP only · 22/443/6443/8006     · Default → cluster/dmz: NONE     · cluster → Default LAN: NONE (NAS isolated)</text>
+  <text x="60" y="1898" font-size="10" font-family="Courier New, monospace">mgmt → cluster: ALL                                       · mgmt → dmz: ALL                  · cluster → mgmt: 53/123 only (DNS/NTP)</text>
+  <text x="60" y="1916" font-size="10" font-family="Courier New, monospace">cluster → dmz: 443→ingress, 7844→cloudflared              · dmz → cluster: 443→ingress only  · dmz → mgmt: NONE</text>
+  <text x="60" y="1934" font-size="10" font-family="Courier New, monospace">Internet → any lab VLAN: NONE (Cloudflare Tunnel only)    · any lab VLAN → Internet: as needed (egress filter is Phase 4)</text>
+  <text x="60" y="1956" font-size="10" font-style="italic" fill="#b85450">ZBF gotchas: rule-order within zone-pair · Local-In ≠ Inter-VLAN · Return traffic needs explicit Established,Related rule in opposite direction</text>
+</svg>

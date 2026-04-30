@@ -49,6 +49,14 @@ Prometheus / Grafana (runbook 04), or any application workload (Phase 3).
   `~/.config/sops/age/keys.txt`. (You'll need this to encrypt the k3s
   join token.)
 
+- The repo's `.sops.yaml` has a creation rule that matches `*.enc.yaml`
+  paths (added 2026-04-29 during Phase 1 bootstrap). This is what lets
+  `sops --encrypt --filename-override <path>.enc.yaml ...` resolve to the
+  lab's age recipient. Verify:
+  ```sh
+  grep -E '\\.enc\\.ya' .sops.yaml   # expect a creation_rules entry
+  ```
+
 ---
 
 ## Step 0 — Decide the cluster boundaries you'll re-derive later
@@ -93,9 +101,13 @@ Discipline rules in force here (per ARCH §9 / ADR-0008):
  cd "/Users/cucox91/Documents/Claude/Projects/Cucox Lab/cucox-lab-infra"
 
  # Generate a 64-char hex token and pipe it directly to sops, never to disk.
- # SOPS reads stdin for binary input and writes the encrypted YAML out.
+ # `--filename-override` makes sops match `.sops.yaml` creation_rules against the
+ # target filename (the `*.enc.yaml` rule). Without it, sops sees the input path
+ # as `/dev/stdin` and fails with "no matching creation rules found".
  printf 'k3s_token: %s\n' "$(openssl rand -hex 32)" \
-   | sops --encrypt --input-type yaml --output-type yaml /dev/stdin \
+   | sops --encrypt \
+       --filename-override ansible/group_vars/k3s/secrets.enc.yaml \
+       --input-type yaml --output-type yaml /dev/stdin \
    > ansible/group_vars/k3s/secrets.enc.yaml
 
  # Verify it encrypted (file should contain `sops:` metadata block).
@@ -109,20 +121,38 @@ that ends up in `ps -ef`:
  sops --decrypt ansible/group_vars/k3s/secrets.enc.yaml | yq -r .k3s_token
 ```
 
-When passing the token to a remote `ssh ... bash` (Steps 2 and 3), use stdin
-piping with a quoted heredoc on the remote side. The token never appears in
-the local shell's argv or env:
+When passing the token to a remote `ssh ... bash` (Steps 2 and 3), the
+challenge is that we want **two** things on the remote side: (a) the token, as
+an environment variable for the install script, and (b) the install script
+itself, as stdin for `bash -s`. Both can't share ssh's stdin trivially —
+naïvely combining a pipe and a heredoc on ssh causes the heredoc to
+**override** the pipe (bash applies explicit `<<` redirects after the pipe is
+set up), so `$(cat)` on the remote reads the heredoc body and the piped token
+gets silently discarded.
+
+The pattern that actually works: combine the token and the install script
+into a single stdin stream (token on the first line), then split them on the
+remote side with `read -r`:
 
 ```sh
- sops --decrypt ansible/group_vars/k3s/secrets.enc.yaml \
-   | yq -r .k3s_token \
-   | ssh ubuntu@10.10.20.21 'sudo K3S_TOKEN=$(cat) bash -s' << 'REMOTE'
-   curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION=... sh -s - server ...
-REMOTE
+{
+  sops --decrypt ansible/group_vars/k3s/secrets.enc.yaml | yq -r .k3s_token
+  cat <<'INSTALL'
+curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION=... sh -s - server ...
+INSTALL
+} | ssh ubuntu@10.10.20.21 'IFS= read -r TOKEN; sudo K3S_TOKEN="$TOKEN" bash -s'
 ```
 
-The quoted `<<'REMOTE'` prevents local expansion of `$K3S_TOKEN`, and the
-`$(cat)` on the remote side reads it from stdin inside the sudoed shell.
+What this preserves:
+
+- Token never lives in argv (visible in `ps`), env, shell history, or on disk.
+  It exists only in pipe buffers locally and as a shell variable on the remote.
+- `sudo K3S_TOKEN="$TOKEN"` passes the token through `sudo`'s env-var prefix
+  syntax, so the child `bash -s` inherits `K3S_TOKEN` without it being a
+  sudo argument.
+- `read -r TOKEN` consumes exactly one line; everything after it stays on
+  stdin for `bash -s` to execute as the install script.
+
 Steps 2 and 3 use this pattern.
 
 ---
@@ -135,14 +165,14 @@ and cp03 join as etcd peers.
 
 ### 2.1 Install on cp01
 
-Token is piped via stdin into the remote sudoed shell — never in argv or
-env on the local Mac Air. Note the **quoted** `<<'REMOTE'` heredoc, which
-prevents local expansion of `$K3S_TOKEN`.
+Token + install script combined into a single stdin stream (token on line 1,
+install script on lines 2+); remote side splits them with `IFS= read -r`.
+See Step 1's pattern explanation for why this shape, not a heredoc-on-ssh.
 
 ```sh
- sops --decrypt ansible/group_vars/k3s/secrets.enc.yaml \
-   | yq -r .k3s_token \
-   | ssh ubuntu@10.10.20.21 'sudo K3S_TOKEN=$(cat) bash -s' << 'REMOTE'
+{
+  sops --decrypt ansible/group_vars/k3s/secrets.enc.yaml | yq -r .k3s_token
+  cat <<'INSTALL'
 curl -sfL https://get.k3s.io | \
   INSTALL_K3S_VERSION="v1.30.5+k3s1" \
   sh -s - server \
@@ -157,7 +187,8 @@ curl -sfL https://get.k3s.io | \
     --cluster-cidr=10.42.0.0/16 \
     --service-cidr=10.43.0.0/16 \
     --write-kubeconfig-mode 0644
-REMOTE
+INSTALL
+} | ssh ubuntu@10.10.20.21 'IFS= read -r TOKEN; sudo K3S_TOKEN="$TOKEN" bash -s'
 ```
 
 **Why the four `--disable` flags?** ARCH §5.2 only spells out
@@ -197,12 +228,30 @@ Don't be tempted to skip ahead and "fix it" by re-enabling Flannel.
 The token stays in a pipe; only the per-VM IP varies. Each call decrypts
 once and pipes straight into ssh.
 
+> **Paste-safe shortcut:** the corrected `join_server` / `join_agent`
+> definitions are also saved in `scripts/k3s-join-helpers.sh`. Source it
+> instead of pasting the function bodies below — multi-line heredocs in
+> shell function definitions are paste-fragile (see the 2026-04-29 Phase 1
+> bootstrap session for the gory details). Quick path:
+>
+> ```sh
+> cd "/Users/cucox91/Documents/Claude/Projects/Cucox Lab/cucox-lab-infra"
+> source scripts/k3s-join-helpers.sh
+> join_server 10.10.20.22
+> join_server 10.10.20.23
+> join_agent  10.10.20.31
+> join_agent  10.10.20.32
+> ```
+>
+> The function definitions in the code block below are reproduced for
+> documentation / review; treat the script file as the source of truth.
+
 ```sh
 join_server () {
   local host_ip=$1
-   sops --decrypt ansible/group_vars/k3s/secrets.enc.yaml \
-     | yq -r .k3s_token \
-     | ssh ubuntu@"$host_ip" 'sudo K3S_TOKEN=$(cat) bash -s' << REMOTE
+  {
+    sops --decrypt ansible/group_vars/k3s/secrets.enc.yaml | yq -r .k3s_token
+    cat <<INSTALL
 curl -sfL https://get.k3s.io | \
   INSTALL_K3S_VERSION="v1.30.5+k3s1" \
   sh -s - server \
@@ -216,20 +265,22 @@ curl -sfL https://get.k3s.io | \
     --disable=traefik \
     --cluster-cidr=10.42.0.0/16 \
     --service-cidr=10.43.0.0/16
-REMOTE
+INSTALL
+  } | ssh ubuntu@"$host_ip" 'IFS= read -r TOKEN; sudo K3S_TOKEN="$TOKEN" bash -s'
 }
 
 join_agent () {
   local host_ip=$1
-   sops --decrypt ansible/group_vars/k3s/secrets.enc.yaml \
-     | yq -r .k3s_token \
-     | ssh ubuntu@"$host_ip" 'sudo K3S_TOKEN=$(cat) bash -s' << REMOTE
+  {
+    sops --decrypt ansible/group_vars/k3s/secrets.enc.yaml | yq -r .k3s_token
+    cat <<INSTALL
 curl -sfL https://get.k3s.io | \
   INSTALL_K3S_VERSION="v1.30.5+k3s1" \
   K3S_URL="https://10.10.20.21:6443" \
   sh -s - agent \
     --node-ip ${host_ip}
-REMOTE
+INSTALL
+  } | ssh ubuntu@"$host_ip" 'IFS= read -r TOKEN; sudo K3S_TOKEN="$TOKEN" bash -s'
 }
 
  join_server 10.10.20.22
@@ -238,14 +289,18 @@ REMOTE
  join_agent  10.10.20.32
 ```
 
-> **Heredoc subtlety:** the outer heredoc `<< REMOTE` (unquoted) lets the
-> *local* shell expand `${host_ip}` only — the `$(cat)` is inside a
-> single-quoted argument to `ssh`, so it's evaluated on the *remote* side
-> against stdin (the piped token). This split is intentional.
+> **Why this shape:** the brace group `{ ... }` makes both `sops|yq` (the
+> token) and `cat <<INSTALL ... INSTALL` (the install script) write to the
+> same stdout, which becomes ssh's stdin. On the remote side `IFS= read -r
+> TOKEN` consumes exactly the first line (the token); the rest of stdin
+> stays available for `bash -s` to execute as the install script. The
+> heredoc delimiter is **unquoted** (`<<INSTALL`, not `<<'INSTALL'`) so
+> `${host_ip}` expands locally in the install script lines.
 
 ### 3.2 Verify five-node cluster
 
 ```sh
+mkdir -p ~/.kube     # scp will refuse to write into a missing directory
 scp ubuntu@10.10.20.21:/etc/rancher/k3s/k3s.yaml ~/.kube/cucox-lab.yaml
 
 # macOS BSD sed (Mac Air): keep the empty '' after -i.

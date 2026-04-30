@@ -27,3 +27,10 @@ creation_rules:
   # See runbook 01 § 1.2 — Proxmox API token lives here.
   - path_regex: ^terraform/.+/secrets[^/]*\.ya?ml$
     age: *cucox_lab
+
+  # Encrypted-at-rest YAML files using the *.enc.yaml convention
+  # (e.g. ansible/group_vars/k3s/secrets.enc.yaml — k3s join token, runbook 02 §1).
+  # Also enables sops to match when encrypting from /dev/stdin via
+  # `--filename-override`-style invocations down the road.
+  - path_regex: \.enc\.ya?ml$
+    age: *cucox_lab
