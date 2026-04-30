@@ -21,3 +21,9 @@ creation_rules:
   # Generic credentials.json blobs
   - path_regex: (^|/)credentials\.json$
     age: *cucox_lab
+
+  # Terraform secret-vars: anything under terraform/<provider>/ whose
+  # filename starts with `secrets` (e.g. secrets.auto.tfvars.enc.yaml).
+  # See runbook 01 § 1.2 — Proxmox API token lives here.
+  - path_regex: ^terraform/.+/secrets[^/]*\.ya?ml$
+    age: *cucox_lab
