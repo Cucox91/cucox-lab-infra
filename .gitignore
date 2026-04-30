@@ -42,3 +42,13 @@ Thumbs.db
 # Python (pre-commit creates venvs but stores them under ~/.cache)
 __pycache__/
 *.pyc
+
+# Terraform local state
+**/.terraform/
+**/.terraform.lock.hcl
+**/terraform.tfstate
+**/terraform.tfstate.backup
+**/terraform.tfvars      # contains your SSH key + non-secret VM map; ok to commit if you prefer
+
+# SOPS plaintext should never appear; encrypted *.enc.yaml IS committed.
+**/secrets.auto.tfvars

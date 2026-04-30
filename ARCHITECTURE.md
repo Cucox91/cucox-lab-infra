@@ -1,7 +1,7 @@
 # Cucox Lab — Architecture
 
 > **Status:** Draft · Phase 1 (VM bringup + k3s cluster, in progress)
-> **Last updated:** 2026-04-26
+> **Last updated:** 2026-04-29
 > **Owner:** Raziel
 
 This is the canonical design document for the Cucox Lab. It is intentionally
@@ -108,6 +108,14 @@ Internet
    └── SSID: CucoxLab-Mgmt      → mgmt VLAN 10 (new, for operator access)
 ```
 
+**VLAN model on the Proxmox host:** traditional Linux VLAN — one Linux
+bridge per VLAN, fed by tagged kernel sub-interfaces of the physical
+NIC. `vmbr0` carries native (untagged → VLAN 10 via `lab-trunk` switch
+port profile) and holds the host IP; `vmbr20` and `vmbr30` are bridges
+with `enpXsY.20` / `enpXsY.30` as their only ports. VMs attach with
+`--net0 bridge={vmbr0|vmbr20|vmbr30}` directly — no `tag=N`. Decision
+and rationale: [ADR-0012](./docs/decisions/0012-vlan-model-traditional-linux-vlan.md).
+
 ### 3.2 VLAN plan
 
 | VLAN | Name | Subnet | Purpose |
@@ -137,9 +145,32 @@ Pod and service CIDRs (intra-cluster, do not overlap any VLAN):
 
 ### 3.3 Firewall posture (UCG-Max rules)
 
-Default for inter-VLAN traffic: **deny**. Allow rules are explicit and minimal.
+Default for all flows is **deny**. Allow rules are explicit and minimal. Three
+layers of policy matter on the UCG-Max and must be reasoned about separately:
 
-| From | To | Allow | Notes |
+1. **Inter-VLAN** — traffic between two lab/Default networks (§3.3.1)
+2. **Local-In** — traffic from a VLAN to the gateway IP itself (§3.3.2). UniFi
+   9.x's Zone-Based Firewall enforces this independently; *being able to reach
+   another network does not imply being able to reach your own gateway's
+   services*.
+3. **Internet egress** — traffic from a VLAN out to the public Internet
+   (§3.3.3). Also a separate zone-pair (`<lab-zone> → External`).
+
+Documenting all three explicitly because Phase 1 hit a multi-hour debugging
+session caused by treating "VLAN works" as "VLAN can reach DNS / apt".
+
+#### 3.3.1 Inter-VLAN flows
+
+**Connection-state convention.** All entries below refer to **new connections**
+(TCP SYNs, the first packet of a UDP flow, ICMP echo requests). The UCG-Max
+is stateful: return packets for connections initiated in the opposite
+direction are permitted via conntrack — but only if the reverse zone-pair
+has an explicit `Match State = Established, Related` allow rule. UniFi 9.x's
+Zone-Based Firewall does **not** auto-create these for non-default zone
+pairs; each is listed in §3.3.5. See ADR-0013 for the rationale on the
+`dmz → mgmt` return-traffic carve-out specifically.
+
+| From | To | Allow (new connections) | Notes |
 |---|---|---|---|
 | Default LAN | mgmt | Operator-IP only, tcp/22, tcp/443, tcp/6443, tcp/8006 | Mac Air admin access fallback when off CucoxLab-Mgmt SSID. Better path: connect to CucoxLab-Mgmt SSID (places client *into* mgmt). |
 | Default LAN | cluster, dmz | none | Hard isolation. |
@@ -149,14 +180,82 @@ Default for inter-VLAN traffic: **deny**. Allow rules are explicit and minimal.
 | cluster | Default LAN | **none** | NAS is firewalled off; Pis are firewalled off. |
 | cluster | dmz | tcp/443 to ingress, tcp/7844 to cloudflared | Specific service ports only. |
 | dmz | cluster | tcp/443 to ingress | cloudflared → ingress only. |
-| dmz | mgmt | none | dmz is the most-exposed VLAN; never reaches the operator network. |
-| any lab VLAN | Internet (out) | as needed | Image pulls, NTP, OS updates. Egress filtering is a Phase 4 concern. |
+| dmz | mgmt | **none for new connections** — see §3.3.5 + ADR-0013 | dmz cannot initiate any flow to mgmt. Stateful return traffic for mgmt-initiated flows IS permitted (operator SSH/HTTPS into dmz hosts works). The "dmz never reaches mgmt" invariant is preserved at the New-connection layer. |
 | Internet | any lab VLAN | none | All ingress is via Cloudflare Tunnel (no port forwards). |
+
+#### 3.3.2 Local-In flows (VLAN → gateway services)
+
+The UCG-Max runs DHCP/DNS forwarders, NTP, and mDNS reflection on each VLAN's
+SVI. UniFi 9.x's Zone-Based Firewall treats `<lab-zone> → Gateway` as its own
+policy cell — default is deny for non-trusted zones.
+
+| From | To | Allow | Notes |
+|---|---|---|---|
+| mgmt | Gateway (10.10.10.1) | all | Operator zone — implicit allow-all to gateway services. |
+| cluster | Gateway (10.10.20.1) | tcp+udp/53, udp/123, udp/5353 | DNS forwarder, NTP, mDNS for service discovery. |
+| dmz | Gateway (10.10.30.1) | tcp+udp/53, udp/123, udp/5353 | Same minimal set. dmz must use the gateway's DNS forwarder (cannot reach 10.10.10.1 per inter-VLAN deny, cannot reach Internet:53 unless §3.3.3 grants it). |
+
+#### 3.3.3 Internet egress per VLAN (`<lab-zone> → External`)
+
+Default deny per zone. Allow rules narrow by destination port only — IP-level
+egress filtering is deferred to Phase 4.
+
+| From | Allow (TCP) | Allow (UDP) | Notes |
+|---|---|---|---|
+| mgmt | all | all | Operator workstation; broad egress is acceptable. |
+| cluster | all | all | k3s image pulls, OS updates. Will narrow in Phase 4 once a registry mirror lands. |
+| dmz | 80, 443, 7844 | 7844, 123 | Minimum for: apt mirrors (80/443), container image pulls (443), cloudflared tunnel (tcp+udp 7844), NTP (123). No DNS to public resolvers — dmz uses the gateway forwarder per §3.3.2. |
 
 **NAS isolation invariant:** the NAS is on Default LAN and the firewall blocks
 all `cluster→NAS` and `dmz→NAS` flows. House clients reach the NAS unchanged.
 This is a load-bearing rule — when adding any lab→NAS exception in the future,
 write an ADR first.
+
+#### 3.3.4 UniFi 9.x implementation notes
+
+Three operational gotchas worth knowing before editing rules:
+
+- **Rule order is significant.** UniFi evaluates custom policies in ID order
+  (lowest first). A `Block All` rule with a low ID will short-circuit any
+  later allow rule in the same zone-pair cell. The Zone Matrix's effective-
+  policy display (e.g. "Block All (5)") shows the *outcome*, not the most
+  permissive rule — so a cell can show `Block All` even when narrower
+  allows exist underneath. **Convention: any catch-all `Block All` must
+  be the last custom rule in its cell**, with specific allows above it.
+- **Local-In is not Inter-VLAN.** Adding a `mgmt → dmz: all` policy does
+  not, by itself, let a dmz VM use `10.10.30.1` for DNS — that's a
+  separate `Lab-DMZ → Gateway` cell. Each cell has its own default-deny
+  and its own allow list. When provisioning a new service that touches
+  the gateway (DNS, NTP, kubectl-via-LB), check both cells.
+- **Return-traffic rules are independent of forward allows.** A
+  `Lab-Mgmt → Lab-DMZ: Allow All` rule does **not** automatically permit
+  the SYN-ACK back from dmz to mgmt. Each return-direction zone-pair needs
+  its own `Match State = Established, Related` allow rule, listed in
+  §3.3.5. UniFi 9.x does not auto-create these for non-default zone pairs.
+  Symptom when missing: ICMP ping works (single-packet pseudo-stateful)
+  but TCP handshakes hang (SYN-ACK dropped on the return path).
+
+Provisioning takes 30–60 s on the UCG-Max after saving; verify with
+"Provision Successful" before retesting.
+
+#### 3.3.5 Stateful return traffic (Established + Related)
+
+For each forward-direction inter-VLAN allow in §3.3.1, the reverse direction
+needs an explicit `Match State = Established, Related` rule so conntrack can
+let response packets back. These rules **never** permit new connections in
+the reverse direction — only packets already part of an existing flow.
+
+| From (return) | To (return) | Match State | Permits return traffic for |
+|---|---|---|---|
+| cluster | mgmt | Established, Related | Operator SSH/k3s API/Proxmox UI sessions initiated from mgmt → cluster |
+| dmz | mgmt | Established, Related | Operator SSH/HTTPS sessions initiated from mgmt → dmz (debugging cloudflared, ingress). See ADR-0013. |
+| dmz | cluster | Established, Related | Responses for `cluster → dmz: tcp/443, tcp/7844` flows (ingress, cloudflared). |
+
+Reverse rules for `Default LAN → mgmt` are unnecessary because that flow is
+already operator-only and stateful by virtue of the source IP allowlist.
+
+`Allow Return` rules in the UniFi UI are these rules. The Zone Matrix
+displays cells with these as "Allow Return (N)".
 
 ### 3.4 Switch port profiles (UniFi)
 
@@ -571,7 +670,9 @@ for traces. ADRs and writeups for every interesting result.
 | 0007 | 2026-04-25 | Phase order: build platform fully (Phases 0–2) before migrating any real workload. | Active |
 | 0008 | 2026-04-25 | Repo visibility: **public on GitHub**. SOPS+age encrypts secrets at rest; pre-commit `gitleaks` blocks plaintext leaks; tunnel credentials and the age private key kept out of repo entirely. See [ADR-0008](./docs/decisions/0008-public-repo-sops-gitleaks.md). | Active |
 | 0009 | 2026-04-25 | Storage: two-pool ZFS (`rpool` system, `tank` VMs+bench) on 2× NVMe — second drive relocated from Pi5 where it was bottlenecked by PCIe Gen 2 x1. | **Active (target end-state) — temporarily deviated by ADR-0011 for Phase 1** |
-| 0010 | 2026-04-26 | Terraform Proxmox provider: stay on `Telmate/proxmox` (pinned `~> 2.9.14`) over `bpg/proxmox`. Trade-offs and revisit triggers documented in [ADR-0010](./docs/decisions/0010-terraform-proxmox-provider.md). | Active |
+| 0010 | 2026-04-26 | Terraform Proxmox provider: initially chose `Telmate/proxmox` (pinned `~> 2.9.14`) over `bpg/proxmox`. Trade-offs and revisit triggers documented in [ADR-0010](./docs/decisions/0010-terraform-proxmox-provider.md). | **Superseded by ADR-0010-A on 2026-04-29** (revisit trigger fired) |
+| 0010-A | 2026-04-29 | Migrated from `Telmate/proxmox` to `bpg/proxmox` (pinned `~> 0.66`) after Telmate v2.9.14 panicked on Proxmox 8.x's API response shape. Trigger and rationale in [ADR-0010-A](./docs/decisions/0010A-bpg-proxmox-provider-migration.md). | Active |
 | 0011 | 2026-04-26 | Phase 1 single-pool ZFS deviation: VMs run on `rpool/data` (`local-zfs`) only because the second NVMe relocation is deferred. Closes when 00a Steps 8–13 are run; migration plan in [ADR-0011](./docs/decisions/0011-phase1-single-pool-deviation.md). | Active (deviation, time-boxed) |
+| 0012 | 2026-04-29 | VLAN model: traditional Linux VLAN (one bridge per VLAN, NIC sub-interfaces) over VLAN-aware bridge. Aligns implementation with ARCH § 3.1 and avoids Pattern A's PVID/VID configuration drift. Migration history and full rationale in [ADR-0012](./docs/decisions/0012-vlan-model-traditional-linux-vlan.md). | Active |
 
 Future ADRs go in `docs/decisions/` with full rationale; this table is the index.

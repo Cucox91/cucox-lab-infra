@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | Active |
+| **Status** | **Superseded by [ADR-0010-A](./0010A-bpg-proxmox-provider-migration.md)** on 2026-04-29. Revisit trigger #1 (Telmate bug, no workaround) fired during first `terraform apply`. |
 | **Date** | 2026-04-26 |
 | **Deciders** | Raziel |
 | **Supersedes** | — |

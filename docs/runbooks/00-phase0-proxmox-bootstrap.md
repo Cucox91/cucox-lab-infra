@@ -271,17 +271,36 @@ Two changes happen in lockstep: the host's IP is renumbered to `10.10.10.10`,
 and the switch port profile changes from Default to `lab-trunk`. If they
 happen out of order, you lose access.
 
-### 7.1 Configure the host network statically on the bridge
+### 7.1 Configure the host network statically on three bridges
 
-Edit `/etc/network/interfaces` on the Proxmox host. The exact NIC name is
-something like `enp5s0`; confirm with `ip a`.
+Edit `/etc/network/interfaces` on the Proxmox host. The exact NIC name
+varies by motherboard (commonly `enp5s0`, `enp41s0`, `eno1`, …); confirm
+with `ip a` and substitute throughout.
+
+This config implements the VLAN model spelled out in ARCHITECTURE.md
+§ 3.1 and ADR-0012: **traditional Linux VLAN — one bridge per VLAN, fed
+by tagged NIC sub-interfaces.** It is *not* a VLAN-aware bridge with
+per-VM tags. An earlier draft of this runbook used the latter and broke
+host ↔ VM connectivity inside the bridge; ADR-0012 records why we don't.
 
 ```ini
 auto lo
 iface lo inet loopback
 
+# Physical NIC — no IP, just a passthrough for the bridges below.
+auto enp5s0
 iface enp5s0 inet manual
 
+# Tagged-VLAN sub-interfaces on the NIC (kernel VLAN, not bridge VLAN).
+# These add/strip 802.1Q tags 20 and 30 on egress/ingress respectively.
+auto enp5s0.20
+iface enp5s0.20 inet manual
+
+auto enp5s0.30
+iface enp5s0.30 inet manual
+
+# vmbr0 — mgmt (VLAN 10). Native VLAN at the switch (lab-trunk native=10),
+# so untagged frames here ARE VLAN 10. Host IP lives on this bridge.
 auto vmbr0
 iface vmbr0 inet static
     address 10.10.10.10/24
@@ -289,11 +308,27 @@ iface vmbr0 inet static
     bridge-ports enp5s0
     bridge-stp off
     bridge-fd 0
-    bridge-vlan-aware yes
-    bridge-vids 10 20 30
 
-# Note: bridge-vlan-aware = yes lets us attach VMs to vmbr0 with a `tag=20` later.
+# vmbr20 — cluster (VLAN 20). Bridge ports onto enp5s0.20 which adds the tag.
+auto vmbr20
+iface vmbr20 inet manual
+    bridge-ports enp5s0.20
+    bridge-stp off
+    bridge-fd 0
+
+# vmbr30 — dmz (VLAN 30). Same pattern.
+auto vmbr30
+iface vmbr30 inet manual
+    bridge-ports enp5s0.30
+    bridge-stp off
+    bridge-fd 0
 ```
+
+Note the absence of `bridge-vlan-aware` / `bridge-vids` / `bridge-pvid` —
+those are Pattern A (VLAN-aware bridge), not what we use. VMs in Phase 1
+attach to `vmbr0`, `vmbr20`, or `vmbr30` directly with no `tag=N`; the
+kernel VLAN sub-interface does the tagging unconditionally. See
+[`ADR-0012`](../decisions/0012-vlan-model-traditional-linux-vlan.md).
 
 DNS:
 
@@ -385,6 +420,40 @@ and reconnect.
 This is the verification step. Don't move to Phase 1 until every check
 passes.
 
+### 9.1 Bridge topology sanity (on the Proxmox host)
+
+A misconfigured bridge layer manifests as "Mac Air can ping the host but
+not VMs in any lab VLAN" later in Phase 1. Catch it here, before VMs
+exist.
+
+```sh
+# Three bridges, in this exact shape:
+ip -br link show type bridge
+# expect lines for: vmbr0, vmbr20, vmbr30 (all UP, all NO-CARRIER until used)
+
+# vmbr0 carries the host IP; the other two are bridge-only.
+ip -br a show vmbr0     # 10.10.10.10/24 UP
+ip -br a show vmbr20    # no IP, UP
+ip -br a show vmbr30    # no IP, UP
+
+# Each lab-VLAN bridge is fed by a kernel VLAN sub-interface of the NIC.
+ip -br link show enp5s0.20 enp5s0.30   # both should exist and be UP
+
+# Bridge membership:
+bridge link show       # expect:
+#   enp5s0     master vmbr0   <BROADCAST,MULTICAST,UP,LOWER_UP> ...
+#   enp5s0.20  master vmbr20  ...
+#   enp5s0.30  master vmbr30  ...
+
+# Sanity: NO bridge-vlan-aware nonsense. The following should be EMPTY:
+bridge vlan show       # expect no rows; bridges are not VLAN-aware here
+```
+
+If `bridge vlan show` produces rows, you accidentally configured a
+VLAN-aware bridge. Re-read § 7.1, fix the config, `ifreload -a`, retry.
+
+### 9.2 Reachability from the Mac Air
+
 From the Mac Air on `CucoxLab-Mgmt` (VLAN 10):
 
 ```sh
@@ -412,7 +481,39 @@ ping <NAS_IP>                           # depends on your firewall rules; in
                                         # is BLOCKED. Tune rules if not.
 ```
 
-Switch port profile audit (UniFi UI):
+### 9.3 Lab-VLAN end-to-end test (optional but recommended)
+
+You can't fully exercise `vmbr20` / `vmbr30` until VMs exist in Phase 1,
+but you can prove they're wired correctly with a 60-second throwaway VM.
+Skipping this is fine if you'd rather discover the failure during Phase 1
+runbook 01 § 7. If you do it now, you catch any bridge issue *before*
+spinning up six Terraform-managed VMs.
+
+```sh
+# On the Proxmox host. Use a tiny Alpine ISO if you have one, otherwise
+# any cloud image — we just need something that boots and gets DHCP.
+qm create 998 --name vlan-probe --memory 512 --cores 1 \
+  --net0 virtio,bridge=vmbr20 \
+  --serial0 socket --vga serial0 --ostype l26
+qm set 998 --ide2 local:cloudinit
+# (skip if no cloud image yet) qm set 998 --scsi0 local-zfs:32,...
+qm start 998
+```
+
+The VM won't have an OS yet — that's Phase 1's job — but `bridge link
+show` should now list `tap998i0 master vmbr20`. From the Mac Air:
+
+```sh
+arp -n -i en0 | grep 10.10.20    # expect ARP traffic detected from VMs
+                                  # later. For now this is a placeholder.
+```
+
+Real connectivity testing is in runbook 01 § 7. Destroy the probe when
+done: `qm stop 998 && qm destroy 998`.
+
+### 9.4 Switch port profile audit
+
+In the UniFi UI:
 
 | Port | Expected profile |
 |---|---|
