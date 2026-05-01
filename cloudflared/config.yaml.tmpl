@@ -1,0 +1,34 @@
+# Cloudflared configuration for lab-edge01 (Phase 2).
+# Source of truth: ARCHITECTURE.md § 6.3.
+# Materialized to /etc/cloudflared/config.yaml on lab-edge01.
+#
+# Substitute <TUNNEL_UUID> with the value of `cat ~/.scratch/tunnel-uuid`
+# before deploying — see runbook 03 § 5.2.
+
+tunnel: <TUNNEL_UUID>
+credentials-file: /etc/cloudflared/creds.json
+
+# Connection tuning. Defaults are sane; these are explicit so the
+# config self-documents.
+protocol: quic                 # uses UDP 7844 (preferred); falls back to TCP 7844
+loglevel: info
+metrics: 127.0.0.1:2000        # Prometheus scrape target (runbook 04)
+no-autoupdate: true            # apt manages the binary; daemon never self-updates
+
+# Hostname routes are added per-domain by runbook 05. Until then the
+# tunnel is registered but routes nothing public. The catch-all MUST
+# remain the last entry.
+ingress:
+  # --- runbook 05 fills this section, one block per migrated zone ---
+  # - hostname: cucox.me
+  #   service: https://10.10.20.50:443
+  #   originRequest:
+  #     noTLSVerify: true
+  #     httpHostHeader: cucox.me
+  # - hostname: www.cucox.me
+  #   service: https://10.10.20.50:443
+  #   originRequest:
+  #     noTLSVerify: true
+  #     httpHostHeader: www.cucox.me
+  # ----------------------------------------------------------------
+  - service: http_status:404

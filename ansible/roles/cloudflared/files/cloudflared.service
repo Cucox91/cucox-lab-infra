@@ -1,0 +1,24 @@
+[Unit]
+Description=Cloudflare Tunnel daemon (lab-edge01 -> cucox-lab-prod)
+Documentation=docs/runbooks/03-phase2-cloudflared-tunnel.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=notify
+User=cloudflared
+Group=cloudflared
+ExecStart=/usr/bin/cloudflared --no-autoupdate --config /etc/cloudflared/config.yaml tunnel run
+Restart=on-failure
+RestartSec=5s
+TimeoutStartSec=0
+
+# Hardening — see runbook 03 § 6.1 for rationale.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadOnlyPaths=/etc/cloudflared
+
+[Install]
+WantedBy=multi-user.target

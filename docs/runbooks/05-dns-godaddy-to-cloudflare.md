@@ -13,6 +13,35 @@
 
 ---
 
+## Note on early-start state from runbook 03
+
+The Phase 2 pilot zone (`cucox.me`) may already be partially through
+**Step 1** (GoDaddy DNS inventory) and **Step 2** (Cloudflare zone
+created in Pending state) when this runbook is opened.
+
+Runbook 03 § Step 2.0 pulls these forward to bootstrap the
+`cloudflared tunnel login` flow (Cloudflare requires at least one zone
+in the account before a CLI Origin Certificate can be issued). When that
+happens:
+
+- The GoDaddy export already exists at
+  `~/Documents/cucox-lab-archive/zone-baselines/cucox.me-godaddy-<date>.zone`.
+- The zone exists in Cloudflare in **Pending Nameserver Update** state,
+  with auto-imported records already verified against the GoDaddy
+  export.
+- Per-zone analysis (record-by-record migration plan, what to preserve,
+  what to drop) lives in [`05a-zone-cucox-me-pre-migration.md`](./05a-zone-cucox-me-pre-migration.md).
+
+**If that early-start happened:** skip ahead to § Step 3 (Tunnel CNAMEs
+and `cloudflared` ingress rules). Re-read the per-zone notes file
+before doing so.
+
+**If it didn't (e.g. you're migrating a later zone like `exycle.com`):**
+proceed with this runbook's Step 1 normally, and create a new
+`05a-zone-<name>-pre-migration.md` from the cucox.me template.
+
+---
+
 ## Prerequisites
 
 - Cloudflare account exists (free plan is sufficient).

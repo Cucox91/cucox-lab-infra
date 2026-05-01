@@ -34,3 +34,10 @@ creation_rules:
   # `--filename-override`-style invocations down the road.
   - path_regex: \.enc\.ya?ml$
     age: *cucox_lab
+
+  # Encrypted-at-rest JSON files using the *.enc.json convention
+  # (e.g. ansible/group_vars/lab_edge/tunnel-creds.enc.json — Cloudflare
+  # Tunnel credentials, runbook 03 §2.4). Same `--filename-override`
+  # rationale as the YAML rule above.
+  - path_regex: \.enc\.json$
+    age: *cucox_lab
