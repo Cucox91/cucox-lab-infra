@@ -543,12 +543,23 @@ target.
 ```sh
 helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
   --namespace ingress \
-  --version 4.11.3 \
+  --version 4.11.8 \
   --values k8s/ingress-nginx/values.yaml
 
 kubectl -n ingress get svc ingress-nginx-controller
 # EXTERNAL-IP should be 10.10.20.50.
 ```
+
+> **Version-pin note** (added 2026-05-01 during runbook 04 execution).
+> Originally pinned 4.11.3. By 2026-05-01 the chart index had pruned
+> 4.11.3 entirely; the available 4.11.x line was 4.11.4 through 4.11.8.
+> Bumped to 4.11.8 (latest patch in the line). Patch bumps in 4.11.x
+> are CVE/bug fixes only — values schema is stable across the line.
+> If a future re-run finds the chart has moved past 4.11.x, search the
+> repo (`helm search repo ingress-nginx/ingress-nginx --versions | head`),
+> pick the latest patch in whatever line you trust, document the bump.
+> A minor-version jump (4.11 → 4.12+) needs a values.yaml diff review
+> like the kube-prometheus-stack 65 → 84 jump in runbook 04 § 4.1.
 
 ### 6.3 End-to-end smoke test
 

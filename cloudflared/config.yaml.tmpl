@@ -12,7 +12,7 @@ credentials-file: /etc/cloudflared/creds.json
 # config self-documents.
 protocol: quic                 # uses UDP 7844 (preferred); falls back to TCP 7844
 loglevel: info
-metrics: 127.0.0.1:2000        # Prometheus scrape target (runbook 04)
+metrics: 10.10.30.21:2000      # Prometheus scrape target (runbook 04 § 6.1). Bound to the dmz interface specifically (not 0.0.0.0). Reachable from cluster VLAN per ADR-0015.
 no-autoupdate: true            # apt manages the binary; daemon never self-updates
 
 # Hostname routes are added per-domain by runbook 05. Until then the

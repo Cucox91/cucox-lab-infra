@@ -1,0 +1,43 @@
+# Cucox Lab — Workload per-namespace dashboard. Seeded via the
+# kube-prometheus-stack Grafana sidecar.
+# The `workload` derivation via label_replace strips the trailing
+# replicaset+pod suffix — approximate, fine for Phase 2. Replace with
+# a proper join against kube_pod_owner once the dashboards see real
+# use (Phase 3+).
+# See runbook 04 § 8.4.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cucox-lab-workload-per-namespace
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+  annotations:
+    grafana_folder: "Cucox Lab"
+data:
+  cucox-lab-workload-per-namespace.json: |-
+    {
+      "title": "Cucox Lab — Workload per namespace",
+      "uid": "cucox-workload-ns",
+      "tags": ["cucox-lab", "phase-2", "workloads"],
+      "timezone": "browser",
+      "schemaVersion": 39,
+      "templating": {
+        "list": [
+          {
+            "name": "namespace",
+            "type": "query",
+            "datasource": {"type":"prometheus","uid":"prometheus"},
+            "query": "label_values(kube_pod_info, namespace)",
+            "current": {"text":"All","value":"$__all"},
+            "includeAll": true
+          }
+        ]
+      },
+      "panels": [
+        {"type":"stat","title":"Pods running","targets":[{"expr":"sum(kube_pod_status_phase{namespace=~\"$namespace\",phase=\"Running\"})"}]},
+        {"type":"timeseries","title":"CPU per workload","targets":[{"expr":"sum by (workload) (label_replace(rate(container_cpu_usage_seconds_total{namespace=~\"$namespace\"}[5m]), \"workload\", \"$1\", \"pod\", \"(.*)-[^-]+-[^-]+\"))"}]},
+        {"type":"timeseries","title":"Memory per workload","targets":[{"expr":"sum by (workload) (label_replace(container_memory_working_set_bytes{namespace=~\"$namespace\"}, \"workload\", \"$1\", \"pod\", \"(.*)-[^-]+-[^-]+\"))"}]},
+        {"type":"timeseries","title":"Pod restarts (last 24h)","targets":[{"expr":"sum by (namespace, pod) (increase(kube_pod_container_status_restarts_total{namespace=~\"$namespace\"}[24h]))"}]}
+      ]
+    }

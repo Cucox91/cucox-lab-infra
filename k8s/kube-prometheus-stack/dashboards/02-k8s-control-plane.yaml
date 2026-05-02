@@ -1,0 +1,31 @@
+# Cucox Lab — k8s control-plane dashboard. Seeded via the
+# kube-prometheus-stack Grafana sidecar.
+# Etcd metrics intentionally absent — k3s embedded etcd doesn't expose
+# its metrics endpoint by default (kube-prometheus-stack values.yaml
+# disables the kubeEtcd ServiceMonitor for that reason). Add an etcd
+# panel here when Phase 4 wires the etcd metrics port.
+# See runbook 04 § 8.3.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cucox-lab-k8s-control-plane
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+  annotations:
+    grafana_folder: "Cucox Lab"
+data:
+  cucox-lab-k8s-control-plane.json: |-
+    {
+      "title": "Cucox Lab — k8s control plane",
+      "uid": "cucox-k8s-cp",
+      "tags": ["cucox-lab", "phase-2", "control-plane"],
+      "timezone": "browser",
+      "schemaVersion": 39,
+      "panels": [
+        {"type":"stat","title":"API server up","targets":[{"expr":"up{job=\"apiserver\"}"}]},
+        {"type":"timeseries","title":"API request rate","targets":[{"expr":"sum by (verb) (rate(apiserver_request_total[5m]))"}]},
+        {"type":"timeseries","title":"API request duration p99","targets":[{"expr":"histogram_quantile(0.99, sum by (le, verb) (rate(apiserver_request_duration_seconds_bucket[5m])))"}]},
+        {"type":"timeseries","title":"API 5xx error rate","targets":[{"expr":"sum by (verb) (rate(apiserver_request_total{code=~\"5..\"}[5m]))"}]}
+      ]
+    }

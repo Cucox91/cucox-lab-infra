@@ -20,4 +20,11 @@ controller:
   metrics:
     enabled: true                         # for Phase 2 Prometheus
     serviceMonitor:
-      enabled: false                      # turn on once kube-prometheus-stack lands
+      enabled: true                       # was: false. Flipped 2026-05-01 (runbook 04 § 5).
+      additionalLabels:
+        # Belt-and-suspenders: explicit `release` label so this SM is
+        # picked up even if a future Prometheus has a strict release-
+        # label selector. Today, kube-prometheus-stack's
+        # `serviceMonitorSelectorNilUsesHelmValues: false` (k8s/kube-prometheus-stack/values.yaml)
+        # makes the label optional — but redundancy is cheap.
+        release: kube-prometheus-stack

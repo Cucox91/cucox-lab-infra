@@ -739,19 +739,30 @@ Validate the config syntactically *before* starting the daemon:
 
 ```sh
 ssh ubuntu@10.10.30.21 'sudo -u cloudflared cloudflared --config /etc/cloudflared/config.yaml ingress validate'
-# Expect: "Validating rules from /etc/cloudflared/config.yaml"
-#         "OK"
 ```
 
-If `ingress validate` reports an error, fix the template and re-deploy
-before doing anything else. Starting cloudflared with a broken config
-gets you confusing systemd retry loops.
+Expected output depends on the cloudflared version:
+
+- **Older builds** (pre-2026): `Validating rules from /etc/cloudflared/config.yaml` then `OK`, exit 0.
+- **2026+ builds** (verified during runbook 04 execution on 2026-05-01):
+  when the ingress section is mostly the catch-all 404 (no real
+  rules to validate), cloudflared short-circuits to a hint —
+  `Use \`cloudflared tunnel run\` to start tunnel <UUID>` — and exits
+  with a non-zero code. **This non-zero exit is not a failure** in
+  this scenario; it's a CLI semantic change. The actual proof that
+  the config is valid is whether the daemon starts cleanly in Step
+  6.2 and whether the tunnel registers 4 connections.
+
+In either case, if the output mentions an actual parse error
+(unknown field, malformed YAML, etc.), fix the template and re-deploy
+before doing anything else. Starting cloudflared with a genuinely
+broken config gets you confusing systemd retry loops.
 
 ### Decision gate before Step 6
 
 - [ ] `/etc/cloudflared/config.yaml` exists on `lab-edge01` with the
       Tunnel UUID substituted in.
-- [ ] `cloudflared --config ... ingress validate` returns `OK`.
+- [ ] `cloudflared --config ... ingress validate` either returns `OK` (older builds) or the `Use \`cloudflared tunnel run\` to start tunnel <UUID>` hint (2026+ builds with the catch-all-only ingress). Either output indicates the config parsed; an actual parse error has different wording (unknown field, malformed YAML, etc.).
 - [ ] No active hostname routes are present (only the `http_status:404`
       catch-all). This is correct for runbook 03; runbook 05 will add
       hostnames.

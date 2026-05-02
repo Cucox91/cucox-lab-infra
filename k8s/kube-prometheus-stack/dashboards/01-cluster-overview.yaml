@@ -1,0 +1,29 @@
+# Cucox Lab — Cluster overview dashboard. Seeded via the
+# kube-prometheus-stack Grafana sidecar (label `grafana_dashboard: "1"`).
+# Lands in the "Cucox Lab" folder via the `grafana_folder` annotation.
+# See runbook 04 § 8.2.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cucox-lab-cluster-overview
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+  annotations:
+    grafana_folder: "Cucox Lab"
+data:
+  cucox-lab-cluster-overview.json: |-
+    {
+      "title": "Cucox Lab — Cluster overview",
+      "uid": "cucox-cluster-overview",
+      "tags": ["cucox-lab", "phase-2"],
+      "timezone": "browser",
+      "schemaVersion": 39,
+      "panels": [
+        {"type":"stat","title":"Nodes Ready","targets":[{"expr":"sum(kube_node_status_condition{condition=\"Ready\",status=\"true\"})"}]},
+        {"type":"timeseries","title":"CPU usage by node","targets":[{"expr":"sum by (node) (rate(node_cpu_seconds_total{mode!=\"idle\"}[5m]))"}]},
+        {"type":"timeseries","title":"Memory used by node","targets":[{"expr":"sum by (instance) (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes)"}]},
+        {"type":"timeseries","title":"Disk used by node (rootfs)","targets":[{"expr":"sum by (instance) (node_filesystem_size_bytes{mountpoint=\"/\"} - node_filesystem_avail_bytes{mountpoint=\"/\"})"}]},
+        {"type":"timeseries","title":"Net rx/tx by node","targets":[{"expr":"sum by (instance) (rate(node_network_receive_bytes_total[5m]))","legendFormat":"rx {{instance}}"},{"expr":"sum by (instance) (rate(node_network_transmit_bytes_total[5m]))","legendFormat":"tx {{instance}}"}]}
+      ]
+    }

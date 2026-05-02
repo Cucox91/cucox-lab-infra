@@ -1,0 +1,42 @@
+# Internal-only Ingress for Grafana — runbook 04 § 7.2.
+#
+# Hostname `grafana.lab.cucox.local` is resolved on the operator
+# workstation only, via /etc/hosts → 10.10.20.50 (the ingress-nginx
+# MetalLB VIP). No Cloudflare DNS record. No tunnel hostname route.
+# No public surface. The admin UI is unreachable from the public
+# internet by construction in Phase 2.
+#
+# TLS is intentionally NOT terminated here:
+#   - cert-manager + Let's Encrypt is a Phase 3 follow-up
+#   - The hostname is internal-only; request path is mac-air → mgmt
+#     VLAN → ingress VIP on cluster VLAN. No external network.
+#   - Adding a self-signed cert would just train the operator to
+#     click through TLS warnings — the wrong habit.
+# When cert-manager lands (Phase 3), flip `ssl-redirect` back to
+# "true" and add a `tls:` block with a real cert from a Let's Encrypt
+# DNS-01 challenge against the Cloudflare zone.
+#
+# Threat-priority sanity: Grafana stays priority-2-only (cluster
+# attack surface) and never becomes priority-1 (home network)
+# concern. The cluster→Default-LAN deny in ARCH § 3.3.1 holds at the
+# gateway regardless of what runs in this Ingress.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: grafana
+  namespace: monitoring
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: grafana.lab.cucox.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: kube-prometheus-stack-grafana
+                port:
+                  number: 80

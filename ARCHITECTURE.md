@@ -219,7 +219,7 @@ pairs; each is listed in §3.3.5. See ADR-0013 for the rationale on the
 | mgmt | dmz | all | Operator must reach cloudflared / ingress for debugging. |
 | cluster | mgmt | tcp/53 (CoreDNS upstream), tcp/123 (NTP) | Minimal — pods should not initiate to mgmt. |
 | cluster | Default LAN | **none** | NAS is firewalled off; Pis are firewalled off. |
-| cluster | dmz | tcp/443 to ingress, tcp/7844 to cloudflared | Specific service ports only. |
+| cluster | dmz | tcp/443 to ingress, tcp/7844 to cloudflared, tcp/2000 to cloudflared metrics on lab-edge01 | Specific service ports only. The `:2000` entry was added 2026-05-01 (Phase 2 observability) to let in-cluster Prometheus scrape cloudflared's metrics endpoint; see [ADR-0015](./docs/decisions/0015-cluster-dmz-2000-prometheus-cloudflared.md). Time-boxed: closes when Phase 5 moves cloudflared in-cluster. |
 | dmz | cluster | tcp/443 to ingress | cloudflared → ingress only. |
 | dmz | mgmt | **none for new connections** — see §3.3.5 + ADR-0013 | dmz cannot initiate any flow to mgmt. Stateful return traffic for mgmt-initiated flows IS permitted (operator SSH/HTTPS into dmz hosts works). The "dmz never reaches mgmt" invariant is preserved at the New-connection layer. |
 | Internet | any lab VLAN | none | All ingress is via Cloudflare Tunnel (no port forwards). |
@@ -540,18 +540,54 @@ The full migration procedure is in
 
 ### 7.1 Day-1 stack — metrics only
 
-Installed via the `kube-prometheus-stack` Helm chart on the cluster:
+Installed via the `kube-prometheus-stack` Helm chart (pinned `84.5.0`)
+on the cluster, materialized by
+[runbook 04](./docs/runbooks/04-phase2-observability.md):
 
-- **Prometheus** (1 replica, 30-day retention, PV via local-path).
-- **node_exporter** (DaemonSet across all nodes).
-- **Grafana** (1 replica, behind ingress + Cloudflare Access).
-- **kube-state-metrics**, default ServiceMonitors for k8s control-plane.
+- **Prometheus** (1 replica, 30-day retention on a 50Gi `local-path`
+  PV pinned to `lab-wk01` via `nodeSelector` — local-path PVs are
+  node-bound per § 5.3, so pinning is what makes scheduling
+  deterministic until Longhorn lands in Phase 4).
+- **node_exporter** (DaemonSet across all 5 nodes). The `monitoring`
+  namespace is labeled `pod-security.kubernetes.io/enforce=privileged`
+  + `warn=restricted` — `baseline` would reject node_exporter's
+  `hostNetwork`/`hostPID`/`hostPath` requirements; the warn label
+  preserves operator-visible signal for any future workload that
+  asks for elevated permissions.
+- **Grafana** (1 replica, behind `ingress-nginx` at the internal
+  hostname `grafana.lab.cucox.local`, resolved on the operator
+  workstation via `/etc/hosts` → `10.10.20.50`). Phase 2 keeps the
+  admin UI mgmt-VLAN-only — no public hostname, no Cloudflare DNS
+  record, no Access policy. Cloudflare Access bootstrap and
+  cert-manager-issued TLS for the public version of the admin UI are
+  Phase 3 follow-ups, gated on runbook 05's `cucox.me` cutover (per
+  § 6.2).
+- **kube-state-metrics** + default ServiceMonitors for kube-apiserver,
+  kubelet, and CoreDNS. The `kubeControllerManager` / `kubeScheduler`
+  / `kubeProxy` / `kubeEtcd` ServiceMonitors are explicitly disabled
+  in chart values: k3s combines control-plane binaries into a single
+  process (no separate scrape), Cilium replaces kube-proxy (§ 5.2),
+  and embedded etcd's metrics endpoint is not exposed by default.
+  Re-enable `kubeEtcd` when Phase 4 wires that port.
+- **ingress-nginx** ServiceMonitor enabled (controller `:10254` —
+  `enabled: true` plus a redundant `release: kube-prometheus-stack`
+  label as belt-and-suspenders).
+- **cloudflared** on `lab-edge01` scraped via Prometheus
+  `additionalScrapeConfigs` (a static target — cloudflared isn't a
+  Kubernetes Service, so a ServiceMonitor doesn't apply). Endpoint
+  rebound from `127.0.0.1:2000` to `10.10.30.21:2000` so the scrape
+  can cross the cluster→dmz boundary; the firewall allow that makes
+  this work is in § 3.3.1, gated by [ADR-0015](./docs/decisions/0015-cluster-dmz-2000-prometheus-cloudflared.md).
 
-Grafana dashboards seeded:
+Grafana dashboards seeded under a "Cucox Lab" folder
+(ConfigMap-mounted via the chart's sidecar):
 
-1. Cluster overview (node CPU/RAM/disk/net per node).
-2. k8s control-plane (etcd latency, API request duration).
-3. Workload per-namespace.
+1. Cluster overview (Nodes Ready, per-node CPU/RAM/disk/net).
+2. k8s control-plane (API server up + request rate + p99 duration +
+   5xx error rate). Etcd latency panel deferred until Phase 4 wires
+   the etcd metrics endpoint.
+3. Workload per-namespace (pods running, CPU + memory per workload,
+   24h restart count, with a namespace dropdown).
 
 ### 7.2 Future additions (deferred)
 
@@ -716,5 +752,6 @@ for traces. ADRs and writeups for every interesting result.
 | 0011 | 2026-04-26 | Phase 1 single-pool ZFS deviation: VMs run on `rpool/data` (`local-zfs`) only because the second NVMe relocation is deferred. Closes when 00a Steps 8–13 are run; migration plan in [ADR-0011](./docs/decisions/0011-phase1-single-pool-deviation.md). | Active (deviation, time-boxed) |
 | 0012 | 2026-04-29 | VLAN model: traditional Linux VLAN (one bridge per VLAN, NIC sub-interfaces) over VLAN-aware bridge. Aligns implementation with ARCH § 3.1 and avoids Pattern A's PVID/VID configuration drift. Migration history and full rationale in [ADR-0012](./docs/decisions/0012-vlan-model-traditional-linux-vlan.md). | Active |
 | 0014 | 2026-05-01 | Phase 2 cloudflared on `lab-edge01` targets the ingress-nginx VIP `https://10.10.20.50:443` directly rather than the in-cluster Service DNS sketched in ARCH § 6.3. Time-boxed deviation: closes when Phase 5 moves cloudflared in-cluster. Per-route `httpHostHeader` is mandatory as a consequence; `noTLSVerify: true` until cert-manager lands in Phase 3. See [ADR-0014](./docs/decisions/0014-cloudflared-edge-vm-upstream-vip.md). | Active (deviation, time-boxed) |
+| 0015 | 2026-05-01 | Open `cluster (10.10.20.0/24) → dmz (10.10.30.21):tcp/2000` so in-cluster Prometheus can scrape the cloudflared metrics endpoint on lab-edge01. cloudflared metrics rebind from `127.0.0.1:2000` to `10.10.30.21:2000` is the consequential config change. Time-boxed: closes when Phase 5 moves cloudflared in-cluster. See [ADR-0015](./docs/decisions/0015-cluster-dmz-2000-prometheus-cloudflared.md). | Active (deviation, time-boxed) |
 
 Future ADRs go in `docs/decisions/` with full rationale; this table is the index.

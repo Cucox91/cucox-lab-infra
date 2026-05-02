@@ -1,0 +1,163 @@
+# k8s/kube-prometheus-stack/values.yaml — Cucox Lab Phase 2 observability.
+# See ARCHITECTURE.md § 7.1 and docs/runbooks/04-phase2-observability.md.
+#
+# Chart pin: prometheus-community/kube-prometheus-stack 84.5.0 (Helm repo:
+# https://prometheus-community.github.io/helm-charts). Major version jump
+# from the originally-drafted 65.5.0 reviewed on first execution
+# (2026-05-01) — see runbook 04 § 4.1 for the schema diff. Every field
+# below is present in 84.5.0 at the same path it had in 65.5.0.
+
+# ---------------------------------------------------------------- alerts
+alertmanager:
+  enabled: false                       # ARCH § 7.2 — deferred to Phase 4
+
+# ---------------------------------------------------------------- prom
+prometheus:
+  prometheusSpec:
+    replicas: 1
+    retention: 30d
+    retentionSize: 45GB                # leave headroom under the 50Gi PVC
+
+    # Pin to lab-wk01 — local-path PVs are node-bound (ARCH § 5.3).
+    nodeSelector:
+      kubernetes.io/hostname: lab-wk01
+
+    # Don't filter ServiceMonitors by Helm release label — let any
+    # ServiceMonitor in any namespace match. This is what allows
+    # ingress-nginx's ServiceMonitor (in the `ingress` namespace) to
+    # be picked up automatically in runbook 04 § 5.
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+    probeSelectorNilUsesHelmValues: false
+
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: local-path
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 50Gi
+
+    # Static scrape for cloudflared on lab-edge01 (out-of-cluster).
+    # Per ADR-0015 + runbook 04 § 6.2. cloudflared is a systemd daemon
+    # on a non-cluster VM, so a ServiceMonitor cannot apply — this is
+    # the static-target equivalent. Labels chosen so dashboards filter
+    # on `service`/`tunnel`/`host`/`vlan` rather than the raw instance
+    # string; when Phase 5 adds an in-cluster cloudflared replica, the
+    # same dashboards work without panel surgery.
+    additionalScrapeConfigs:
+      - job_name: cloudflared-edge01
+        scrape_interval: 30s
+        scrape_timeout: 10s
+        metrics_path: /metrics
+        static_configs:
+          - targets: ['10.10.30.21:2000']
+            labels:
+              service: cloudflared
+              tunnel: cucox-lab-prod
+              host: lab-edge01
+              vlan: dmz
+
+    # Resource caps — generous floor, hard ceiling.
+    resources:
+      requests:
+        cpu: 250m
+        memory: 1Gi
+      limits:
+        cpu: 2000m
+        memory: 4Gi
+
+# ---------------------------------------------------------------- grafana
+grafana:
+  enabled: true
+  replicas: 1
+
+  # Admin password is supplied via --set on the Helm command line
+  # (runbook 04 § 4.3), decrypted on the fly from the SOPS-sealed file.
+  # We do NOT put the password in this values.yaml — values.yaml is
+  # committed to the repo.
+  admin:
+    existingSecret: ""                 # we use --set adminPassword instead
+  # adminUser stays "admin" (chart default).
+
+  persistence:
+    enabled: true
+    storageClassName: local-path
+    accessModes: ["ReadWriteOnce"]
+    size: 5Gi
+
+  # Pin Grafana to the same node as Prometheus — keeps the local-path
+  # PVs co-resident on lab-wk01, simplifies snapshot/restore.
+  nodeSelector:
+    kubernetes.io/hostname: lab-wk01
+
+  service:
+    type: ClusterIP                    # exposed via Ingress in runbook 04 § 7.2, not LoadBalancer
+
+  # Ingress is created OUT-OF-BAND (runbook 04 § 7.2) so we can review
+  # the Ingress YAML separately and not entangle it with chart values.
+  ingress:
+    enabled: false
+
+  # Default datasource: in-cluster Prometheus.
+  sidecar:
+    datasources:
+      enabled: true
+      defaultDatasourceEnabled: true
+    dashboards:
+      enabled: true                    # auto-discover ConfigMap-mounted dashboards
+      label: grafana_dashboard
+      labelValue: "1"
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+# ---------------------------------------------------------------- node-exporter
+nodeExporter:
+  enabled: true                        # DaemonSet across all 5 nodes
+
+prometheus-node-exporter:
+  hostRootFsMount:
+    enabled: true
+    mountPropagation: HostToContainer
+
+# ---------------------------------------------------------------- ksm
+kubeStateMetrics:
+  enabled: true
+
+# ---------------------------------------------------------------- defaults
+# Disable the default scrape jobs we don't need / can't reach in k3s.
+kubeApiServer:
+  enabled: true
+kubelet:
+  enabled: true
+kubeControllerManager:
+  enabled: false                       # k3s combines into a single binary; not separately scrapable
+kubeScheduler:
+  enabled: false                       # same
+kubeProxy:
+  enabled: false                       # we run kube-proxy-replacement via Cilium (runbook 02 § 4.2)
+kubeEtcd:
+  enabled: false                       # k3s embedded etcd; metrics endpoint not exposed by default
+
+# ---------------------------------------------------------------- crds
+# kube-prometheus-stack ships its own CRDs (ServiceMonitor, etc.).
+# `helm install` applies them only on first install; upgrades skip
+# CRDs by design. If we ever upgrade the chart, the runbook should
+# remind us to `kubectl apply` the CRDs from the chart's `crds/` dir
+# manually first.
+crds:
+  enabled: true
+
+# ---------------------------------------------------------------- pdb
+defaultRules:
+  create: true                         # ship the default rule set; we won't alert on it (no Alertmanager)
+  rules:
+    alertmanager: false                # don't bother with alertmanager rules
