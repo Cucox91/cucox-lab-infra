@@ -1,0 +1,38 @@
+# exycle — Prometheus ServiceMonitor.
+#
+# kube-prometheus-stack runs the Prometheus Operator, which watches
+# for ServiceMonitor resources cluster-wide. This one tells it to
+# scrape /metrics on the api Service every 30s.
+#
+# The API exposes Prometheus metrics via prometheus-net.AspNetCore
+# (Startup.cs: app.UseHttpMetrics() + endpoints.MapMetrics()).
+# /metrics is anonymous so the scrape doesn't need auth.
+#
+# Once applied, you'll see exycle-api targets in Prometheus
+# (`up{job="exycle-api"}`) and the request-duration histograms
+# show up as `http_request_duration_seconds_*`.
+
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: exycle-api
+  namespace: exycle
+  labels:
+    app.kubernetes.io/name: exycle-api
+    app.kubernetes.io/component: api
+    # kube-prometheus-stack's default serviceMonitorSelector matches
+    # `release: kube-prometheus-stack`. Add it so Prometheus picks
+    # up this monitor without changing the Operator's selector.
+    release: kube-prometheus-stack
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: exycle-api
+  namespaceSelector:
+    matchNames:
+      - exycle
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 10s

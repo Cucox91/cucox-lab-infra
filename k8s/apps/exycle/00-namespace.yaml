@@ -1,0 +1,23 @@
+# exycle — namespace for the containerized Exycle app
+# (.NET 10 API + in-cluster Postgres).
+#
+# PodSecurity Standards labeled `restricted` on enforce/warn/audit,
+# matching cucox-me. Both the API (chiseled image, runs as UID 1654
+# by default) and Postgres (16-alpine, runs as `postgres` UID 70)
+# satisfy `restricted` without elevated permissions:
+#   - no hostPath / hostNetwork / hostPID
+#   - no NET_RAW
+#   - no privileged caps
+#
+# This is stricter than `monitoring` (which needs `privileged` for
+# node-exporter's hostNetwork). Application namespaces should default
+# to `restricted` unless an ADR documents a specific need otherwise.
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: exycle
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted

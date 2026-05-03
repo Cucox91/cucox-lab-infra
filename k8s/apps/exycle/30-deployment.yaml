@@ -1,0 +1,114 @@
+# exycle — API Deployment.
+#
+# Image is the multi-stage Docker build from the app repo's
+# Dockerfile (chiseled .NET 10 runtime). Push to GHCR with:
+#
+#     # In the Exycle repo, on the Modernization branch:
+#     docker build -t ghcr.io/cucox91/exycle:0.1.0 .
+#     docker push ghcr.io/cucox91/exycle:0.1.0
+#
+# The image runs as UID 1654 (chiseled image's $APP_UID), which
+# satisfies PSA `restricted` runAsNonRoot. We pin runAsUser/Group
+# to 1654 so the admission decision is explicit rather than
+# inheriting from the image.
+#
+# DataProtection keys (anti-forgery, refresh-token cookies) are
+# written to /home/app/.aspnet/DataProtection-Keys at runtime, but
+# readOnlyRootFilesystem prevents that. Mount an emptyDir at
+# /home/app to give the .NET runtime a writable home. Keys are lost
+# on pod restart — fine for JWT auth (stateless) but means in-flight
+# refresh-token cookies don't survive restarts. If that becomes
+# important, switch DataProtection to Postgres-backed key storage
+# (Microsoft.AspNetCore.DataProtection.EntityFrameworkCore).
+#
+# liveness vs readiness:
+#   - /healthz/live = process up. No DB check; restarting the pod
+#     for a transient DB blip would just amplify the outage.
+#   - /healthz/ready = ready to serve. Includes the Npgsql check
+#     from Startup.cs; if Postgres is down, this pod gets pulled
+#     out of the Service endpoints until it recovers.
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: exycle-api
+  namespace: exycle
+  labels:
+    app.kubernetes.io/name: exycle-api
+    app.kubernetes.io/component: api
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: exycle-api
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: exycle-api
+        app.kubernetes.io/component: api
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1654
+        runAsGroup: 1654
+        fsGroup: 1654
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: api
+          image: ghcr.io/cucox91/exycle:0.1.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: exycle-config
+            - secretRef:
+                name: exycle-secrets
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: home
+              mountPath: /home/app
+            - name: tmp
+              mountPath: /tmp
+          livenessProbe:
+            httpGet:
+              path: /healthz/live
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /healthz/ready
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+      volumes:
+        - name: home
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}

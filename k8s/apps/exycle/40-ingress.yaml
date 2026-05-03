@@ -1,0 +1,50 @@
+# exycle — Ingress for exycle.com (apex + www).
+#
+# Same shape as cucox-me's ingress: TLS terminates at Cloudflare's
+# edge; cloudflared talks HTTPS to ingress-nginx with noTLSVerify
+# (ADR-0014, until cert-manager lands in Phase 3); ingress-nginx
+# serves HTTP to the backend pod.
+#
+# ssl-redirect: false — same reasoning as cucox-me. Enabling it
+# makes cloudflared receive a 308 back to itself and breaks the
+# chain.
+#
+# Both apex and www route to the same Service. cloudflared's
+# per-route httpHostHeader (cloudflared/config.yaml.tmpl) sends
+# the right Host header so ingress-nginx's host-based matching
+# works for both.
+#
+# When you wire this up, also append exycle.com / www.exycle.com
+# routes to cloudflared/config.yaml.tmpl and re-deploy the tunnel
+# config on lab-edge01 (runbook 05).
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: exycle
+  namespace: exycle
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: exycle.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: exycle-api
+                port:
+                  number: 80
+    - host: www.exycle.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: exycle-api
+                port:
+                  number: 80
