@@ -1,0 +1,18 @@
+# exycle — non-secret runtime configuration.
+#
+# Sensitive values live in the SOPS-encrypted Secret (15-secrets.yaml).
+# The split is the standard 12-factor pattern: anything safe to read
+# in `kubectl get cm -o yaml` goes here; anything that would be a leak
+# goes there.
+#
+# ConnectionStrings__DefaultConnection lives in the Secret (not here)
+# because it embeds the Postgres password.
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: exycle-config
+  namespace: exycle
+data:
+  ASPNETCORE_ENVIRONMENT: "Production"
+  ASPNETCORE_URLS: "http://+:8080"

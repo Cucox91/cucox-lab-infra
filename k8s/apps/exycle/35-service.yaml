@@ -1,0 +1,27 @@
+# exycle — Service that fronts the API Deployment.
+#
+# ClusterIP — public entry is via cloudflared on lab-edge01 →
+# ingress-nginx VIP → this Service (ARCH § 6.3, ADR-0014). Same
+# pattern as cucox-me-web.
+#
+# port 80 is the cluster-internal port the Ingress backend
+# references. targetPort 8080 routes to the container's Kestrel
+# listener (matches API.csproj's Dockerfile EXPOSE 8080).
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: exycle-api
+  namespace: exycle
+  labels:
+    app.kubernetes.io/name: exycle-api
+    app.kubernetes.io/component: api
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: exycle-api
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+      protocol: TCP
