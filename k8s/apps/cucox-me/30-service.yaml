@@ -1,0 +1,27 @@
+# cucox-me — Service that fronts the Deployment.
+#
+# ClusterIP is sufficient: no LoadBalancer needed because the public
+# entry point is via cloudflared on lab-edge01 → ingress-nginx VIP
+# → this Service (per ARCH § 6.3 + ADR-0014).
+#
+# port 80 is the cluster-internal port the Ingress backend references.
+# targetPort 5001 routes to the container's Express listener (see
+# server/src/server.ts:5 — PORT env var defaults to 5001 and the
+# ConfigMap sets it explicitly to match).
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: cucox-me-web
+  namespace: cucox-me
+  labels:
+    app.kubernetes.io/name: cucox-me-web
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: cucox-me-web
+  ports:
+    - name: http
+      port: 80
+      targetPort: 5001
+      protocol: TCP

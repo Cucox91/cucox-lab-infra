@@ -20,15 +20,17 @@ no-autoupdate: true            # apt manages the binary; daemon never self-updat
 # remain the last entry.
 ingress:
   # --- runbook 05 fills this section, one block per migrated zone ---
-  # - hostname: cucox.me
-  #   service: https://10.10.20.50:443
-  #   originRequest:
-  #     noTLSVerify: true
-  #     httpHostHeader: cucox.me
-  # - hostname: www.cucox.me
-  #   service: https://10.10.20.50:443
-  #   originRequest:
-  #     noTLSVerify: true
-  #     httpHostHeader: www.cucox.me
+  - hostname: cucox.me
+    service: https://10.10.20.50:443
+    originRequest:
+      noTLSVerify: true
+      httpHostHeader: cucox.me
+  - hostname: www.cucox.me
+    service: https://10.10.20.50:443
+    originRequest:
+      noTLSVerify: true
+      httpHostHeader: www.cucox.me
+  # Future zones (exycle.com, cucoxcorp.com) get appended above this
+  # marker as their migrations land.
   # ----------------------------------------------------------------
   - service: http_status:404

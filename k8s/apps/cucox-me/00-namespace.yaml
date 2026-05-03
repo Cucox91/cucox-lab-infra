@@ -1,0 +1,21 @@
+# cucox-me — namespace for the containerized resume site.
+#
+# PodSecurity Standards (PSA) labeled `restricted` on enforce, warn,
+# and audit. The resume app is a vanilla Express server with no need
+# for hostPath, hostNetwork, hostPID, NET_RAW, or any privileged
+# capability — `restricted` is the strongest profile and fits cleanly.
+#
+# This is stricter than the `monitoring` namespace (which had to use
+# `enforce=privileged` to allow node-exporter's hostNetwork/hostPID
+# requirements per the PSA-baseline-blocks-node-exporter memory).
+# Application namespaces should default to `restricted` unless they
+# have a specific, ADR-documented need for elevated permissions.
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cucox-me
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted

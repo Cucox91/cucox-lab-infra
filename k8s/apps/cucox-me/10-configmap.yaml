@@ -1,0 +1,29 @@
+# cucox-me — non-secret runtime configuration.
+#
+# CLIENT_URL is read by server/src/app.ts:20 to set the Express CORS
+# allowlist. Same-origin requests don't trigger CORS, but setting this
+# correctly keeps the value meaningful for any future cross-origin
+# debugging (e.g. testing the API directly via a different host).
+#
+# PORT is read by server/src/server.ts:5. Must match containerPort in
+# the Deployment and targetPort in the Service.
+#
+# What's intentionally NOT here:
+#   - BACKEND_URL: nothing in the running server code reads it; it
+#     was unused on the Azure App Service too. The frontend's
+#     equivalent (VITE_BACKEND_URL) is build-time only and is left
+#     empty in the Dockerfile so axios uses relative paths
+#     (same-origin). See 05a § "App-side environment variables".
+#   - SEED_DATA: server/src/app.ts:47 runs the seeder when this is
+#     "true". Setting it here would re-seed on every pod restart,
+#     which is bad. If a one-time seed is ever needed, run a
+#     separate Job with this env var set.
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cucox-me-config
+  namespace: cucox-me
+data:
+  CLIENT_URL: "https://cucox.me"
+  PORT: "5001"

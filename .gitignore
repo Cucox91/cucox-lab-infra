@@ -52,3 +52,20 @@ __pycache__/
 
 # SOPS plaintext should never appear; encrypted *.enc.yaml IS committed.
 **/secrets.auto.tfvars
+
+# Application source code (out-of-repo by design).
+#
+# This infrastructure repo is public (ADR-0008). Application source trees
+# pulled in for local reference during a migration must NOT be committed:
+# they have their own repos, their own ownership, and their own visibility
+# rules that this repo's posture cannot speak for.
+#
+# Convention: clone or copy app source under "Apps Code/<App Name>/<repo>/"
+# at the repo root. The whole "Apps Code/" tree is gitignored. Examples:
+#   Apps Code/Resume App Updated/my-resume-app-code/
+#   Apps Code/<future-app>/<future-repo>/
+#
+# If app source has already been "git add"-ed in error, untrack with
+#   git rm -r --cached "Apps Code/"
+# (no working-tree deletion) before the next commit.
+/Apps Code/

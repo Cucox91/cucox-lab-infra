@@ -1,0 +1,46 @@
+# cucox-me — Ingress for both apex and www.
+#
+# ingressClassName: nginx — picked up by the cluster's ingress-nginx
+# controller (chart 4.11.8, runbook 02 § 6.1, MetalLB VIP 10.10.20.50).
+#
+# ssl-redirect: "false" — TLS terminates at Cloudflare's edge.
+# cloudflared talks HTTPS to ingress-nginx with `noTLSVerify: true`
+# (per ADR-0014, until cert-manager lands in Phase 3); ingress-nginx
+# serves HTTP to the backend pod. ssl-redirect=true would make
+# cloudflared's request to ingress receive a 308 back to itself,
+# breaking the chain. Disabling it lets the chain work end-to-end.
+#
+# Both apex and www route to the same Service. cloudflared's
+# per-route httpHostHeader (see cloudflared/config.yaml.tmpl) is what
+# makes ingress-nginx see the correct Host: header for matching.
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: cucox-me
+  namespace: cucox-me
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: cucox.me
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: cucox-me-web
+                port:
+                  number: 80
+    - host: www.cucox.me
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: cucox-me-web
+                port:
+                  number: 80

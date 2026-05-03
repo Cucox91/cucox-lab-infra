@@ -25,3 +25,8 @@ variable "tunnel_secret" {
   sensitive   = true
   description = "Base64-encoded tunnel secret. Cloudflare provider v4.40+ requires this on the tunnel resource even when the tunnel was created out-of-band. Extracted from the SOPS-sealed creds JSON via: sops --decrypt ../../ansible/group_vars/lab_edge/tunnel-creds.enc.json | jq -r .TunnelSecret. Never persists outside Terraform state (gitignored)."
 }
+
+variable "cucox_me_zone_id" {
+  type        = string
+  description = "Cloudflare zone ID for cucox.me. Captured from the Cloudflare dashboard (Websites → cucox.me → Overview → API panel on the right). Imported, not created — the zone already exists per runbook 03 § Step 2.0 (Pending Nameserver Update state). See runbook 05 § Step 3.1."
+}
